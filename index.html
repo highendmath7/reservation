@@ -15,7 +15,7 @@
 
     <script>
         // 🚨 수정됨: 고객님이 제공한 최신 URL로 교체
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxgfYgNWAM83yOeYTNnlSZWWMymS3uTxWf7mIhIw5ixRQjrUlr02O8fTDUg9EXe7v3fTw/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzhbUCR56HoWDzgcl1keKMNvOHkiCYYB4gWLwrsYaPw6FmYqh-ERRPrGoBtODinESiJ_A/exec';
 
         let state = {
             availableSlots: [],
@@ -72,6 +72,11 @@
             const parts = cleanTime.split(':');
             const h = parseInt(parts[0], 10);
             const m = parseInt(parts[1], 10);
+            if (isNaN(h) || isNaN(m)) {
+                // 이 에러는 Apps Script의 getValues()를 getDisplayValues()로 변경해야 해결됩니다.
+                console.error("Invalid time format for timeToMins:", time);
+                return 0;
+            }
             return h * 60 + m;
         }
 
@@ -203,6 +208,10 @@
                 
                 console.log('데이터 로드 완료');
                 showMessage('데이터를 성공적으로 불러왔습니다!');
+            } catch (error) {
+                console.error('데이터 로드 실패:', error);
+                // getDisplayValues()를 사용하지 않아 발생한 오류일 수 있음
+                showMessage('데이터를 불러오는데 실패했습니다. (오류: ' + error.message + ' - Google Script의 getDisplayValues() 사용 여부를 확인하세요.)');
             } finally {
                 state.loading = false;
                 render();
@@ -790,5 +799,3 @@
     </script>
 </body>
 </html>
-
-
