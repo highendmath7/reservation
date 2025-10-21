@@ -72,11 +72,6 @@
             const parts = cleanTime.split(':');
             const h = parseInt(parts[0], 10);
             const m = parseInt(parts[1], 10);
-            if (isNaN(h) || isNaN(m)) {
-                // 이 에러는 Apps Script의 getValues()를 getDisplayValues()로 변경해야 해결됩니다.
-                console.error("Invalid time format for timeToMins:", time);
-                return 0;
-            }
             return h * 60 + m;
         }
 
@@ -799,3 +794,4 @@
     </script>
 </body>
 </html>
+
