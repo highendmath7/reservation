@@ -14,8 +14,8 @@
     <div id="app" class="max-w-7xl mx-auto"></div>
 
     <script>
-        // NOTE: Please ensure this Google Script URL is correct and configured for CORS.
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz4outwkBQWipLnWFBv0D_KfvEzRunxJRTQmQshSroYRhrmFHugec_dL_t9abO1wJikkQ/exec';
+        // NOTE: Google Apps Script URL. Ensure this script is deployed as a Web App with 'Execute as: Me' and 'Who has access: Anyone'.
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/library/d/1uAiKy9AzLknXEUoCptsPhA74qIGuE_cqeNzQwMz-aU7cXd7UuFQRTMEq/3';
         
         let state = {
             availableSlots: [],
@@ -48,6 +48,7 @@
                 text: '',
                 isConfirm: false,
                 confirmAction: null,
+                errorDetails: null // Added for detailed error messages
             }
         };
 
@@ -85,67 +86,33 @@
             return minsToTime(totalMins);
         }
         
-        // --- 기존 코드에 추가할 함수 (가용 시간 필터링) ---
-        function generateFilteredTimeOptions(interval = 5) {
-            const { date, room, grade, hasLevelTest } = state.bookingForm;
-            if (!date || !room) return generateTimeOptions(interval); // 날짜/강의실 미선택 시 전체 시간 표시
-        
-            const levelTestMins = hasLevelTest ? (grade === 'elementary' ? 40 : 50) : 0;
-            const requiredTotalMins = levelTestMins + 30; // Consultation is 30 mins
-        
-            const allOptions = generateTimeOptions(interval);
-            const relevantSlots = state.availableSlots.filter(s => s.date === date && s.room === room);
-        
-            const filteredOptions = [];
-        
-            for (const consultTime of allOptions) {
-                const bookingStartTime = addMinutesToTime(consultTime, -levelTestMins); // Test Start Time
-                const bookingEndTime = addMinutesToTime(consultTime, 30); // Consultation End Time
-        
-                const newStartMins = timeToMins(bookingStartTime);
-                const newEndMins = timeToMins(bookingEndTime);
-        
-                // 1. 해당 예약이 가용 슬롯에 완전히 포함되는지 확인
-                let slotFits = relevantSlots.some(slot => {
-                    const slotStartMins = timeToMins(slot.startTime);
-                    const slotEndMins = timeToMins(slot.endTime);
-                    return newStartMins >= slotStartMins && newEndMins <= slotEndMins;
-                });
-                
-                // 2. 다른 예약과 겹치는지 확인 (겹치는 시간은 드롭다운에서 제외)
-                const hasConflict = state.bookings.some(booking => {
-                    if (booking.date !== date || booking.room !== room) return false;
-                    
-                    const existingStartMins = timeToMins(booking.time);
-                    const existingEndMins = timeToMins(booking.endTime);
-                    
-                    // Conflict check
-                    return newStartMins < existingEndMins && newEndMins > existingStartMins;
-                });
-        
-                // 슬롯에 맞고, 겹치는 예약이 없을 때만 옵션에 추가
-                if (slotFits && !hasConflict) {
-                    filteredOptions.push(consultTime);
+        function generateTimeOptions(interval = 5) {
+            const options = [];
+            for (let h = 0; h < 24; h++) {
+                for (let m = 0; m < 60; m += interval) {
+                    const time = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+                    options.push(time);
                 }
             }
-            return filteredOptions;
+            return options;
         }
 
         // --- Message Box Functions (Replacing alert/confirm) ---
 
-        function showMessage(text) {
-            state.message = { show: true, text: text, isConfirm: false, confirmAction: null };
+        function showMessage(text, errorDetails = null) {
+            state.message = { show: true, text: text, isConfirm: false, confirmAction: null, errorDetails: errorDetails };
             render();
         }
 
         function showConfirm(text, action) {
-            state.message = { show: true, text: text, isConfirm: true, confirmAction: action };
+            state.message = { show: true, text: text, isConfirm: true, confirmAction: action, errorDetails: null };
             render();
         }
 
         function closeMessage() {
             state.message.show = false;
             state.message.confirmAction = null;
+            state.message.errorDetails = null;
             render();
         }
 
@@ -160,26 +127,55 @@
 
         async function loadFromGoogleSheets() {
             state.loading = true;
-        
+            render();
+            
             try {
                 const today = formatDate(new Date());
                 
-                const slotsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=slots');
-                const slotsData = await slotsResponse.json();
+                // Fetch Slots
+                let slotsData = [];
+                try {
+                    const slotsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=slots');
+                    if (!slotsResponse.ok) {
+                        throw new Error(`HTTP Error: ${slotsResponse.status} ${slotsResponse.statusText}`);
+                    }
+                    slotsData = await slotsResponse.json();
+                } catch (e) {
+                    throw new Error(`슬롯 데이터 로드 실패: ${e.message}`);
+                }
                 state.availableSlots = slotsData.filter(slot => slot.date >= today && slot.id);
                 
-                const bookingsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=bookings');
-                const bookingsData = await bookingsResponse.json();
+                // Fetch Bookings
+                let bookingsData = [];
+                try {
+                    const bookingsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=bookings');
+                    if (!bookingsResponse.ok) {
+                        throw new Error(`HTTP Error: ${bookingsResponse.status} ${bookingsResponse.statusText}`);
+                    }
+                    bookingsData = await bookingsResponse.json();
+                } catch (e) {
+                    throw new Error(`예약 데이터 로드 실패: ${e.message}`);
+                }
                 state.bookings = bookingsData.filter(booking => booking.date >= today && booking.id);
                 
                 console.log('데이터 로드 완료');
             } catch (error) {
                 console.error('데이터 로드 실패:', error);
-                showMessage('데이터를 불러오는데 실패했습니다.');
+                
+                // ----------------------------------------------------
+                // ✨ 권한 및 CORS 문제에 대한 명확한 에러 메시지 표시
+                // ----------------------------------------------------
+                const genericErrorText = '데이터 로드에 실패했습니다. 다음 사항을 확인해 주세요:';
+                const troubleshootingSteps = `
+                    1. **Google Apps Script 재배포:** 스크립트 편집기에서 '배포' > '배포 관리'로 이동합니다.
+                    2. **액세스 권한 확인:** '액세스 권한이 있는 사용자(Who has access)'가 **'모든 사용자(Anyone)'**로 설정되어 있는지 확인하고 다시 배포하세요.
+                    3. **URL 일치:** 스크립트 URL이 코드에 입력된 URL과 일치하는지 확인하세요.
+                `;
+                
+                showMessage(genericErrorText, troubleshootingSteps);
             } finally {
                 state.loading = false;
                 render();
-
             }
         }
 
@@ -193,8 +189,9 @@
                 method: 'POST',
                 body: formData
             });
-            // Assumes script returns success/failure JSON, though the original just sent a POST.
-            // For robustness, you should check the response here.
+             if (!response.ok) {
+                throw new Error(`HTTP Error during add: ${response.status} ${response.statusText}`);
+            }
             return response;
         }
 
@@ -208,18 +205,9 @@
                 method: 'POST',
                 body: formData
             });
-            // 💡 수정: HTTP 상태 코드를 확인하여 오류를 던짐
-            if (!response.ok) {
-                // 서버 측 오류 응답을 처리하기 위해 텍스트로 읽어 오류 메시지를 던집니다.
-                const errorText = await response.text();
-                throw new Error(`Google Script HTTP Error: ${response.status} - ${errorText}`);
+             if (!response.ok) {
+                throw new Error(`HTTP Error during delete: ${response.status} ${response.statusText}`);
             }
-    
-    // 💡 추가: 스크립트가 반환한 JSON 응답을 확인하여 내부 오류를 처리
-    const jsonResponse = await response.json();
-    if (jsonResponse.error) {
-        throw new Error(`Google Script Internal Error: ${jsonResponse.error}`);
-    }
             return response;
         }
 
@@ -251,7 +239,8 @@
                     room: state.slotForm.room
                 };
                 await addToGoogleSheets('slots', newSlot);
-                state.availableSlots.push(newSlot);
+                // 성공적으로 저장되면 새로고침하여 전체 목록을 다시 가져옵니다.
+                await loadFromGoogleSheets(); 
                 
                 // Reset form and UI state
                 state.slotForm = { date: '', startTime: '', endTime: '', room: '' };
@@ -259,7 +248,7 @@
                 showMessage('가능 시간이 성공적으로 저장되었습니다!');
             } catch (error) {
                 console.error('에러:', error);
-                showMessage('가능 시간 저장 실패! Google Sheets 스크립트 설정을 확인해주세요.');
+                showMessage('가능 시간 저장 실패! Google Sheets 스크립트 설정을 확인해주세요.', error.message);
             } finally {
                 state.syncing = false;
                 render();
@@ -273,7 +262,8 @@
                 
                 try {
                     await deleteFromGoogleSheets('slots', id);
-                    state.availableSlots = state.availableSlots.filter(s => s.id !== id);
+                    // 성공적으로 삭제되면 새로고침하여 전체 목록을 다시 가져옵니다.
+                    await loadFromGoogleSheets(); 
                     showMessage('가능 시간이 삭제되었습니다!');
                 } catch (error) {
                     showMessage('삭제 실패!');
@@ -345,6 +335,7 @@
             const hasConflict = state.bookings.some(booking => {
                 if (booking.date !== bookingDate || booking.room !== bookingRoom) return false;
                 
+                // Note: booking.time and booking.endTime are the actual start/end of the ENTIRE booking (test + consult)
                 const existingStartMins = timeToMins(booking.time);
                 const existingEndMins = timeToMins(booking.endTime);
                 
@@ -375,7 +366,8 @@
                 };
                 
                 await addToGoogleSheets('bookings', newBooking);
-                state.bookings.push(newBooking);
+                // 성공적으로 저장되면 새로고침하여 전체 목록을 다시 가져옵니다.
+                await loadFromGoogleSheets(); 
                 
                 // Reset form (keeping date/room for convenience)
                 state.bookingForm = {
@@ -391,7 +383,7 @@
                 showMessage('예약이 성공적으로 등록되었습니다!');
             } catch (error) {
                 console.error('에러:', error);
-                showMessage('예약 등록 실패! Google Sheets 스크립트 설정을 확인해주세요.');
+                showMessage('예약 등록 실패! Google Sheets 스크립트 설정을 확인해주세요.', error.message);
             } finally {
                 state.syncing = false;
                 render();
@@ -405,7 +397,8 @@
                 
                 try {
                     await deleteFromGoogleSheets('bookings', id);
-                    state.bookings = state.bookings.filter(b => b.id !== id);
+                    // 성공적으로 삭제되면 새로고침하여 전체 목록을 다시 가져옵니다.
+                    await loadFromGoogleSheets(); 
                     showMessage('예약이 삭제되었습니다!');
                 } catch (error) {
                     showMessage('삭제 실패!');
@@ -494,13 +487,21 @@
         function renderMessageBox() {
             if (!state.message.show) return '';
             
-            const { text, isConfirm } = state.message;
+            const { text, isConfirm, errorDetails } = state.message;
             
             return `
                 <div class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
-                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
-                        <div class="text-xl font-bold mb-4 text-gray-800">${isConfirm ? '확인 필요' : '알림'}</div>
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 transform transition-all scale-100">
+                        <div class="text-xl font-bold mb-4 ${errorDetails ? 'text-red-600' : 'text-gray-800'}">
+                            ${isConfirm ? '확인 필요' : (errorDetails ? '⚠️ 데이터 로드 실패 (권한 문제 예상)' : '알림')}
+                        </div>
                         <p class="text-gray-700 mb-6">${text}</p>
+                        ${errorDetails ? `
+                            <div class="bg-red-50 p-4 rounded-lg border border-red-200 mb-6">
+                                <h5 class="font-bold text-red-700 mb-2">Google Script 설정 확인:</h5>
+                                <pre class="text-sm text-red-700 whitespace-pre-wrap">${errorDetails}</pre>
+                            </div>
+                        ` : ''}
                         <div class="flex justify-end space-x-3">
                             ${isConfirm ? `
                                 <button onclick="closeMessage()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition font-medium">취소</button>
@@ -535,6 +536,12 @@
                 html += '<div class="inline-block animate-spin rounded-full h-12 w-12 border-b-4 border-indigo-600"></div>';
                 html += '<p class="mt-4 text-gray-600 font-medium">데이터를 불러오는 중...</p>';
                 html += '</div>';
+            } else if (state.message.errorDetails && !state.availableSlots.length && !state.bookings.length) {
+                 // 데이터 로드 실패 시, 달력 대신 경고 메시지만 표시
+                 html += '<div class="text-center py-20">';
+                 html += '<p class="text-2xl font-bold text-red-600">데이터 로드 실패!</p>';
+                 html += '<p class="mt-4 text-gray-600">Google Apps Script의 접근 권한을 확인해주세요.</p>';
+                 html += '</div>';
             } else {
                 
                 // --- Calendar Section ---
@@ -765,8 +772,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
