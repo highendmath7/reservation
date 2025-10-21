@@ -203,10 +203,6 @@
                 
                 console.log('데이터 로드 완료');
                 showMessage('데이터를 성공적으로 불러왔습니다!');
-            } catch (error) {
-                console.error('데이터 로드 실패:', error);
-                // getDisplayValues()를 사용하지 않아 발생한 오류일 수 있음
-                showMessage('데이터를 불러오는데 실패했습니다. (오류: ' + error.message + ' - Google Script의 getDisplayValues() 사용 여부를 확인하세요.)');
             } finally {
                 state.loading = false;
                 render();
@@ -794,4 +790,5 @@
     </script>
 </body>
 </html>
+
 
