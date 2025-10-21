@@ -16,7 +16,7 @@
     <script>
         // 🚨 수정됨: 고객님이 제공한 최신 URL로 교체
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxgfYgNWAM83yOeYTNnlSZWWMymS3uTxWf7mIhIw5ixRQjrUlr02O8fTDUg9EXe7v3fTw/exec';
-        
+
         let state = {
             availableSlots: [],
             bookings: [],
@@ -138,7 +138,6 @@
 
                 // 3. 기존 예약과 겹치는지 확인
                 const hasConflict = existingBookings.some(booking => {
-                    // booking.time과 booking.endTime은 Apps Script에서 저장 시 변환되어 온 값
                     const existingStartMins = timeToMins(booking.time); 
                     const existingEndMins = timeToMins(booking.endTime);
                     
@@ -478,7 +477,6 @@
         // --- Render Functions ---
         
         function renderCalendar() {
-            // ... (달력 렌더링 로직은 동일) ...
             const year = state.currentDate.getFullYear();
             const month = state.currentDate.getMonth();
             const firstDay = new Date(year, month, 1);
@@ -530,7 +528,6 @@
         }
 
         function renderMessageBox() {
-            // ... (메시지 박스 렌더링 로직은 동일) ...
             if (!state.message.show) return '';
             
             const { text, isConfirm } = state.message;
@@ -556,7 +553,10 @@
         function render() {
             const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
             const selectedSlots = state.availableSlots.filter(s => s.date === state.selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime));
+            
+            // 🚨 수정됨: 선택된 날짜의 예약만 필터링합니다.
             const selectedBookings = state.bookings.filter(b => b.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
+
             const availableRooms = [...new Set(state.availableSlots.filter(s => s.date === state.bookingForm.date).map(s => s.room))];
             
             let html = '<div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8">';
@@ -621,10 +621,10 @@
                         // Date Input
                         html += '<input type="date" value="' + state.slotForm.date + '" onchange="state.slotForm.date = this.value; render();" class="border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500" />';
                         
-                        // Start Time INPUT (키보드 입력 가능)
+                        // Start Time INPUT (키보드 입력 가능) 🚨 수정됨
                         html += '<input type="time" step="300" value="' + state.slotForm.startTime + '" onchange="state.slotForm.startTime = this.value;" class="border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="시작 시간" />';
                         
-                        // End Time INPUT (키보드 입력 가능)
+                        // End Time INPUT (키보드 입력 가능) 🚨 수정됨
                         html += '<input type="time" step="300" value="' + state.slotForm.endTime + '" onchange="state.slotForm.endTime = this.value;" class="border rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="종료 시간" />';
 
                         // Room Input
@@ -656,8 +656,8 @@
                     }
                     html += '</div></div>'; // End Slot List
 
-                    // --- Bookings List (오늘 예약 목록) ---
-                    html += '<div class="mt-8"><h4 class="font-semibold text-gray-800 mb-3 border-l-4 border-blue-500 pl-3">오늘 예약 목록 (' + selectedBookings.length + '건)</h4>';
+                    // --- Bookings List (오늘 예약 목록) 🚨 수정됨
+                    html += '<div class="mt-8"><h4 class="font-semibold text-gray-800 mb-3 border-l-4 border-blue-500 pl-3">' + state.selectedDate + ' 예약 목록 (' + selectedBookings.length + '건)</h4>';
                     html += '<div class="space-y-3">';
                     
                     if (selectedBookings.length === 0) {
@@ -752,7 +752,7 @@
                     html += '</div></div>';
                 }
 
-                // --- Global Booking List (선택된 날짜의 예약 목록) ---
+                // --- Global Booking List (선택된 날짜의 예약 목록) --- 🚨 이 부분은 원래 코드를 유지했습니다.
                 html += '<div class="mt-8"><h3 class="text-xl font-bold text-gray-700 mb-4">향후 전체 예약 목록</h3>';
                 html += '<div class="space-y-3">';
                 
