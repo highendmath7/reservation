@@ -85,15 +85,50 @@
             return minsToTime(totalMins);
         }
         
-        function generateTimeOptions(interval = 5) {
-            const options = [];
-            for (let h = 0; h < 24; h++) {
-                for (let m = 0; m < 60; m += interval) {
-                    const time = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-                    options.push(time);
+        // --- 기존 코드에 추가할 함수 (가용 시간 필터링) ---
+        function generateFilteredTimeOptions(interval = 5) {
+            const { date, room, grade, hasLevelTest } = state.bookingForm;
+            if (!date || !room) return generateTimeOptions(interval); // 날짜/강의실 미선택 시 전체 시간 표시
+        
+            const levelTestMins = hasLevelTest ? (grade === 'elementary' ? 40 : 50) : 0;
+            const requiredTotalMins = levelTestMins + 30; // Consultation is 30 mins
+        
+            const allOptions = generateTimeOptions(interval);
+            const relevantSlots = state.availableSlots.filter(s => s.date === date && s.room === room);
+        
+            const filteredOptions = [];
+        
+            for (const consultTime of allOptions) {
+                const bookingStartTime = addMinutesToTime(consultTime, -levelTestMins); // Test Start Time
+                const bookingEndTime = addMinutesToTime(consultTime, 30); // Consultation End Time
+        
+                const newStartMins = timeToMins(bookingStartTime);
+                const newEndMins = timeToMins(bookingEndTime);
+        
+                // 1. 해당 예약이 가용 슬롯에 완전히 포함되는지 확인
+                let slotFits = relevantSlots.some(slot => {
+                    const slotStartMins = timeToMins(slot.startTime);
+                    const slotEndMins = timeToMins(slot.endTime);
+                    return newStartMins >= slotStartMins && newEndMins <= slotEndMins;
+                });
+                
+                // 2. 다른 예약과 겹치는지 확인 (겹치는 시간은 드롭다운에서 제외)
+                const hasConflict = state.bookings.some(booking => {
+                    if (booking.date !== date || booking.room !== room) return false;
+                    
+                    const existingStartMins = timeToMins(booking.time);
+                    const existingEndMins = timeToMins(booking.endTime);
+                    
+                    // Conflict check
+                    return newStartMins < existingEndMins && newEndMins > existingStartMins;
+                });
+        
+                // 슬롯에 맞고, 겹치는 예약이 없을 때만 옵션에 추가
+                if (slotFits && !hasConflict) {
+                    filteredOptions.push(consultTime);
                 }
             }
-            return options;
+            return filteredOptions;
         }
 
         // --- Message Box Functions (Replacing alert/confirm) ---
@@ -125,8 +160,23 @@
 
         async function loadFromGoogleSheets() {
             state.loading = true;
-            render();
+            const response = await fetch(GOOGLE_SCRIPT_URL, {
+                method: 'GET',
+                body: formData
+            });
+            // 💡 수정: HTTP 상태 코드를 확인하여 오류를 던짐
+            if (!response.ok) {
+                // 서버 측 오류 응답을 처리하기 위해 텍스트로 읽어 오류 메시지를 던집니다.
+                const errorText = await response.text();
+                throw new Error(`Google Script HTTP Error: ${response.status} - ${errorText}`);
+            }
             
+            // 💡 추가: 스크립트가 반환한 JSON 응답을 확인하여 내부 오류를 처리
+            const jsonResponse = await response.json();
+            if (jsonResponse.error) {
+                throw new Error(`Google Script Internal Error: ${jsonResponse.error}`);
+            }
+        
             try {
                 const today = formatDate(new Date());
                 
@@ -145,6 +195,7 @@
             } finally {
                 state.loading = false;
                 render();
+                return jsonResponse;
             }
         }
 
@@ -173,6 +224,18 @@
                 method: 'POST',
                 body: formData
             });
+            // 💡 수정: HTTP 상태 코드를 확인하여 오류를 던짐
+            if (!response.ok) {
+                // 서버 측 오류 응답을 처리하기 위해 텍스트로 읽어 오류 메시지를 던집니다.
+                const errorText = await response.text();
+                throw new Error(`Google Script HTTP Error: ${response.status} - ${errorText}`);
+            }
+    
+    // 💡 추가: 스크립트가 반환한 JSON 응답을 확인하여 내부 오류를 처리
+    const jsonResponse = await response.json();
+    if (jsonResponse.error) {
+        throw new Error(`Google Script Internal Error: ${jsonResponse.error}`);
+    }
             return response;
         }
 
@@ -718,4 +781,5 @@
     </script>
 </body>
 </html>
+
 
