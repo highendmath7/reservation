@@ -160,22 +160,6 @@
 
         async function loadFromGoogleSheets() {
             state.loading = true;
-            const response = await fetch(GOOGLE_SCRIPT_URL, {
-                method: 'GET',
-                body: formData
-            });
-            // 💡 수정: HTTP 상태 코드를 확인하여 오류를 던짐
-            if (!response.ok) {
-                // 서버 측 오류 응답을 처리하기 위해 텍스트로 읽어 오류 메시지를 던집니다.
-                const errorText = await response.text();
-                throw new Error(`Google Script HTTP Error: ${response.status} - ${errorText}`);
-            }
-            
-            // 💡 추가: 스크립트가 반환한 JSON 응답을 확인하여 내부 오류를 처리
-            const jsonResponse = await response.json();
-            if (jsonResponse.error) {
-                throw new Error(`Google Script Internal Error: ${jsonResponse.error}`);
-            }
         
             try {
                 const today = formatDate(new Date());
@@ -195,7 +179,7 @@
             } finally {
                 state.loading = false;
                 render();
-                return jsonResponse;
+
             }
         }
 
@@ -781,6 +765,7 @@
     </script>
 </body>
 </html>
+
 
 
 
