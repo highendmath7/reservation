@@ -672,7 +672,7 @@
           html += '<div><div class="flex justify-between items-center mb-3">';
           html += '<h3 class="font-semibold text-xl text-gray-800">🗓️ 상담 가능 시간</h3>';
           if (!isPastDate) {
-            html += '<button onclick="state.slotForm.date = \'' + state.selectedDate + '\'; state.slotForm.room = availableRoomsForSelectedDate[0] || allRooms[0] || \'\'; state.showSlotForm = true; render();" class="bg-indigo-600 text-white px-3 py-1 rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-md transition">+ 시간 추가</button>';
+            html += '<button onclick="state.slotForm.date = \'' + state.selectedDate + '\'; state.slotForm.room = room[0] || allRooms[0] || \'\'; state.showSlotForm = true; render();" class="bg-indigo-600 text-white px-3 py-1 rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-md transition">+ 시간 추가</button>';
           }
           html += '</div><div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">';
           
@@ -832,7 +832,7 @@
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">장소</label>';
         html += '<select onchange="state.bookingForm.room = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
         html += '<option value="">선택</option>';
-        availableRoomsForSelectedDate.forEach(room => {
+        room.forEach(room => {
             html += '<option value="' + room + '" ' + (state.bookingForm.room === room ? 'selected' : '') + '>' + room + '</option>';
         });
         html += '</select></div>';
@@ -966,6 +966,7 @@
   </script>
 </body>
 </html>
+
 
 
 
