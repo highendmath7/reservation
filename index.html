@@ -392,6 +392,19 @@
       render();
     }
 
+    function openSlotForm(date, defaultRoom) {
+      state.slotForm.date = date;
+      state.slotForm.room = defaultRoom;
+      state.showSlotForm = true;
+      render();
+    }
+
+    function openBookingForm(date) {
+      state.bookingForm.date = date;
+      state.showBookingForm = true;
+      render();
+    }
+
     function renderCalendar() {
       const year = state.currentDate.getFullYear();
       const month = state.currentDate.getMonth();
@@ -928,3 +941,4 @@
   </script>
 </body>
 </html>
+
