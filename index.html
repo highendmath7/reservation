@@ -6,47 +6,31 @@
   <title>상담 예약 시스템</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Noto Sans KR 폰트를 사용하여 한글 가독성을 높입니다. */
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
     * { font-family: 'Noto Sans KR', sans-serif; }
-    /* 캘린더 요일/날짜 텍스트 중앙 정렬 */
-    .calendar-grid > div {
-        text-align: center;
-    }
+    .calendar-grid > div { text-align: center; }
   </style>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-4 md:p-8">
   <div id="app" class="max-w-7xl mx-auto"></div>
 
   <script>
-    // NOTE: 구글 Apps Script URL은 사용자 코드에 명시된 URL을 그대로 사용합니다.
     const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUJiREPjy8kf6ZiIwmd4cf0rT7wRXoZRESaFgkwMbjg8HQmP8A5YlJ7azI79FeOfq0Ww/exec';
     
-    // Custom Message Box State and Handlers (Replacing alert/confirm)
     let msgState = {
         show: false,
-        type: 'alert', // 'alert' or 'confirm'
+        type: 'alert',
         message: '',
         confirmCallback: null
     };
 
     function showCustomAlert(message) {
-        msgState = {
-            show: true,
-            type: 'alert',
-            message: message,
-            confirmCallback: null
-        };
+        msgState = { show: true, type: 'alert', message: message, confirmCallback: null };
         render();
     }
 
     function showCustomConfirm(message, callback) {
-        msgState = {
-            show: true,
-            type: 'confirm',
-            message: message,
-            confirmCallback: callback
-        };
+        msgState = { show: true, type: 'confirm', message: message, confirmCallback: callback };
         render();
     }
 
@@ -58,13 +42,11 @@
     function executeConfirm(result) {
         const callback = msgState.confirmCallback;
         closeMessageBox();
-        if (result && callback) {
-            callback();
-        }
+        if (result && callback) callback();
     }
 
     let state = {
-      availableSlots: ['1관', '2관', '5관'],
+      availableSlots: [],
       bookings: [],
       showSlotForm: false,
       showBookingForm: false,
@@ -77,12 +59,7 @@
       syncing: false,
       selectedBookingId: null,
       cancelReason: '',
-      slotForm: {
-        date: '',
-        startTime: '',
-        endTime: '',
-        room: ''
-      },
+      slotForm: { date: '', startTime: '', endTime: '', room: '' },
       bookingForm: {
         studentName: '',
         school: '',
@@ -145,12 +122,12 @@
         const oldSlots = state.availableSlots.filter(slot => slot.date < cutoffDate);
         const oldBookings = state.bookings.filter(booking => booking.date < cutoffDate);
         
-        for (let i = 0; i < oldSlots.length; i++) {
-          await deleteFromGoogleSheets('slots', oldSlots[i].id);
+        for (let slot of oldSlots) {
+          await deleteFromGoogleSheets('slots', slot.id);
         }
         
-        for (let i = 0; i < oldBookings.length; i++) {
-          await deleteFromGoogleSheets('bookings', oldBookings[i].id);
+        for (let booking of oldBookings) {
+          await deleteFromGoogleSheets('bookings', booking.id);
         }
         
         if (oldSlots.length > 0 || oldBookings.length > 0) {
@@ -166,11 +143,7 @@
       formData.append('sheet', sheet);
       formData.append('action', 'add');
       formData.append('data', JSON.stringify(data));
-      
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        body: formData
-      });
+      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
     }
 
     async function updateInGoogleSheets(sheet, id, data) {
@@ -179,11 +152,7 @@
       formData.append('action', 'update');
       formData.append('id', id);
       formData.append('data', JSON.stringify(data));
-      
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        body: formData
-      });
+      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
     }
 
     async function deleteFromGoogleSheets(sheet, id) {
@@ -191,17 +160,11 @@
       formData.append('sheet', sheet);
       formData.append('action', 'delete');
       formData.append('id', id);
-      
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        body: formData
-      });
+      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
     }
 
     function timeToMins(time) {
-      const parts = time.split(':');
-      const h = parseInt(parts[0]);
-      const m = parseInt(parts[1]);
+      const [h, m] = time.split(':').map(Number);
       return h * 60 + m;
     }
 
@@ -212,8 +175,13 @@
     }
 
     function addMinutesToTime(time, minutes) {
-      const totalMins = timeToMins(time) + minutes;
-      return minsToTime(totalMins);
+      return minsToTime(timeToMins(time) + minutes);
+    }
+
+    function isWeekend(dateStr) {
+      const date = new Date(dateStr);
+      const day = date.getDay();
+      return day === 0 || day === 6;
     }
 
     async function addSlot() {
@@ -269,7 +237,6 @@
       const startTime = addMinutesToTime(consultTime, -levelTestMins);
       const endTime = addMinutesToTime(consultTime, 30);
       
-      // Check for conflict with existing bookings
       const hasConflict = state.bookings.some(booking => {
         if (booking.date !== state.bookingForm.date || booking.room !== state.bookingForm.room) return false;
         const existingStart = timeToMins(booking.time);
@@ -284,14 +251,12 @@
         return;
       }
 
-      // Check for conflict with available slots (start and end must be within a slot)
       const slotOverlap = state.availableSlots.some(slot => {
         if (slot.date !== state.bookingForm.date || slot.room !== state.bookingForm.room) return false;
         const slotStart = timeToMins(slot.startTime);
         const slotEnd = timeToMins(slot.endTime);
         const newStart = timeToMins(startTime);
         const newEnd = timeToMins(endTime);
-        // New period must start at or after slotStart AND end at or before slotEnd
         return (newStart >= slotStart && newEnd <= slotEnd);
       });
       
@@ -328,7 +293,7 @@
           hasLevelTest: false,
           date: state.bookingForm.date,
           time: '',
-          room: state.bookingForm.room // Keep the room selected for convenience
+          room: state.bookingForm.room
         };
         state.showBookingForm = false;
         showCustomAlert('예약이 등록되었습니다!');
@@ -417,7 +382,6 @@
       });
     }
 
-    // Calendar Navigation Functions
     function prevMonth() {
       state.currentDate = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() - 1, 1);
       render();
@@ -458,7 +422,7 @@
         if (isTooOld) {
           classes += 'bg-gray-100 opacity-50 text-gray-400 cursor-default';
         } else if (isPast) {
-            classes += 'bg-gray-200 cursor-pointer opacity-70';
+          classes += 'bg-gray-200 cursor-pointer opacity-70';
         } else if (isSelected) {
           classes += 'bg-indigo-200 border-indigo-600 ring-2 ring-indigo-400 cursor-pointer shadow-md';
         } else if (hasSlots || hasBooking) {
@@ -491,9 +455,13 @@
       render();
     }
 
-    function generateTimeOptions() {
+    function generateTimeOptions(dateStr) {
       const options = [];
-      for (let h = 9; h <= 21; h++) { // 9시부터 21시까지
+      const weekend = isWeekend(dateStr);
+      const startHour = weekend ? 10 : 15;
+      const endHour = 22;
+      
+      for (let h = startHour; h <= endHour; h++) {
         for (let m = 0; m < 60; m += 5) {
           const time = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
           options.push(time);
@@ -521,41 +489,35 @@
         levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
       }
       
-      const CONSULT_DURATION = 30; // 상담 30분
-      const step = 5; // 5분 단위
+      const CONSULT_DURATION = 30;
+      const step = 5;
       
-      for (let i = 0; i < slots.length; i++) {
-        const slot = slots[i];
+      for (let slot of slots) {
         const startMins = timeToMins(slot.startTime);
         const endMins = timeToMins(slot.endTime);
         
-        // Iterate through all possible *consult* start times within the slot (in 5 min steps)
         for (let consultStartMins = startMins; consultStartMins < endMins; consultStartMins += step) {
+          const requiredStartMins = consultStartMins - levelTestMins;
+          const requiredEndMins = consultStartMins + CONSULT_DURATION;
+          
+          if (requiredStartMins < startMins || requiredEndMins > endMins) continue;
+          
+          let hasConflict = false;
+          for (let booking of allBookings) {
+            const bookingStart = timeToMins(booking.time);
+            const bookingEnd = timeToMins(booking.endTime);
+            const newStart = requiredStartMins;
+            const newEnd = requiredEndMins;
             
-            const requiredStartMins = consultStartMins - levelTestMins;
-            const requiredEndMins = consultStartMins + CONSULT_DURATION;
-            
-            // 1. Check if the entire required block (test start to consult end) is within the slot
-            if (requiredStartMins < startMins || requiredEndMins > endMins) continue;
-            
-            // 2. Check for conflicts with existing bookings
-            let hasConflict = false;
-            for (let j = 0; j < allBookings.length; j++) {
-              const booking = allBookings[j];
-              const bookingStart = timeToMins(booking.time);
-              const bookingEnd = timeToMins(booking.endTime);
-              const newStart = requiredStartMins;
-              const newEnd = requiredEndMins;
-              
-              if (!(newEnd <= bookingStart || newStart >= bookingEnd)) {
-                hasConflict = true;
-                break;
-              }
+            if (!(newEnd <= bookingStart || newStart >= bookingEnd)) {
+              hasConflict = true;
+              break;
             }
-            
-            if (!hasConflict) {
-              availableTimes.add(minsToTime(consultStartMins));
-            }
+          }
+          
+          if (!hasConflict) {
+            availableTimes.add(minsToTime(consultStartMins));
+          }
         }
       }
       
@@ -567,7 +529,7 @@
       const selectedSlots = state.availableSlots.filter(s => s.date === state.selectedDate);
       const selectedBookings = state.bookings.filter(b => b.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
       const allRooms = [...new Set(state.availableSlots.map(s => s.room))].sort();
-      const room = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
+      const availableRoomsForSelectedDate = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
       const today = formatDate(new Date());
       const todayBookings = state.bookings.filter(b => b.date === today).sort((a, b) => a.time.localeCompare(b.time));
       
@@ -588,14 +550,13 @@
       } else {
         // 오늘의 상담 예약
         html += '<div class="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 shadow-lg">';
-        html += '<h2 class="text-2xl font-bold text-gray-800 mb-4">📍 오늘의 상담 예약 (' + today + ')</h2>';
+        html += '<h2 class="text-2xl font-bold text-gray-800 mb-4">🔔 오늘의 상담 예약 (' + today + ')</h2>';
         
         if (todayBookings.length === 0) {
           html += '<p class="text-gray-500 text-center py-8">오늘 예약된 상담이 없습니다.</p>';
         } else {
           html += '<div class="space-y-3">';
-          for (let i = 0; i < todayBookings.length; i++) {
-            const booking = todayBookings[i];
+          for (let booking of todayBookings) {
             const statusColor = booking.status === 'completed' ? 'bg-green-100 border-green-400' : 
                                booking.status === 'cancelled' ? 'bg-red-100 border-red-400' : 
                                'bg-white border-blue-400';
@@ -672,15 +633,14 @@
           html += '<div><div class="flex justify-between items-center mb-3">';
           html += '<h3 class="font-semibold text-xl text-gray-800">🗓️ 상담 가능 시간</h3>';
           if (!isPastDate) {
-            html += '<button onclick="state.slotForm.date = \'' + state.selectedDate + '\'; state.slotForm.room = room[0] || allRooms[0] || \'\'; state.showSlotForm = true; render();" class="bg-indigo-600 text-white px-3 py-1 rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-md transition">+ 시간 추가</button>';
+            html += '<button onclick="state.slotForm.date = \'' + state.selectedDate + '\'; state.slotForm.room = availableRoomsForSelectedDate[0] || allRooms[0] || \'\'; state.showSlotForm = true; render();" class="bg-indigo-600 text-white px-3 py-1 rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-md transition">+ 시간 추가</button>';
           }
           html += '</div><div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">';
           
           if (selectedSlots.length === 0) {
             html += '<p class="text-gray-500 text-sm py-4">이 날짜에 설정된 상담 가능 시간이 없습니다.</p>';
           } else {
-            for (let i = 0; i < selectedSlots.length; i++) {
-              const slot = selectedSlots[i];
+            for (let slot of selectedSlots) {
               html += '<div class="bg-green-50 p-3 rounded-xl border border-green-300 flex justify-between items-center shadow-sm">';
               html += '<div><div class="font-medium text-green-700">' + slot.room + '</div>';
               html += '<div class="text-base font-bold text-gray-800">' + slot.startTime + ' - ' + slot.endTime + '</div></div>';
@@ -703,8 +663,7 @@
           if (selectedBookings.length === 0) {
             html += '<p class="text-gray-500 text-sm py-4">이 날짜에 예약된 상담이 없습니다.</p>';
           } else {
-            for (let i = 0; i < selectedBookings.length; i++) {
-              const booking = selectedBookings[i];
+            for (let booking of selectedBookings) {
               const statusColor = booking.status === 'completed' ? 'bg-green-50 border-green-300' : 
                                   booking.status === 'cancelled' ? 'bg-red-50 border-red-300' : 
                                   'bg-blue-50 border-blue-300';
@@ -743,53 +702,59 @@
             }
           }
           html += '</div></div>';
-          html += '</div>'; // End selected date details
+          html += '</div>';
         }
       }
       
-      html += '</div>'; // End App container
+      html += '</div>';
 
       // --- Modals ---
       
       // 1. 상담 가능 시간 추가 폼 모달 (Slot Form)
       if (state.showSlotForm) {
+        const timeOptions = generateTimeOptions(state.slotForm.date);
+        
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showSlotForm = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 transform transition-all scale-100">';
         html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">➕ 상담 가능 시간 추가</h3>';
         
         html += '<div class="space-y-4">';
+        
         // Date
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">날짜</label>';
         html += '<input type="date" value="' + state.slotForm.date + '" onchange="state.slotForm.date = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required></div>';
 
+        // Weekend info
+        if (state.slotForm.date) {
+          const isWeekendDate = isWeekend(state.slotForm.date);
+          html += '<div class="text-sm p-3 rounded-lg ' + (isWeekendDate ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700') + '">';
+          html += isWeekendDate ? '📅 주말: 10:00~22:00 사이 선택 가능' : '📅 주중: 15:00~22:00 사이 선택 가능';
+          html += '</div>';
+        }
+
         // Room
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">장소</label>';
-        html += '<select onchange="state.slotForm.room = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
-        html += '<option value="">선택</option>';
-        allRooms.forEach(room => {
-            html += '<option value="' + room + '" ' + (state.slotForm.room === room ? 'selected' : '') + '>' + room + '</option>';
-        });
-        html += '</select></div>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
+        html += '<input type="text" value="' + state.slotForm.room + '" oninput="state.slotForm.room = this.value; render();" placeholder="예: 1관, 2관, 본관" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required></div>';
 
         // Start Time
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">시작 시간</label>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">시작 시간 (24시간 표기)</label>';
         html += '<select onchange="state.slotForm.startTime = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
         html += '<option value="">선택</option>';
-        generateTimeOptions().forEach(time => {
-            html += '<option value="' + time + '" ' + (state.slotForm.startTime === time ? 'selected' : '') + '>' + time + '</option>';
+        timeOptions.forEach(time => {
+          html += '<option value="' + time + '" ' + (state.slotForm.startTime === time ? 'selected' : '') + '>' + time + '</option>';
         });
         html += '</select></div>';
 
         // End Time
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">종료 시간</label>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">종료 시간 (24시간 표기)</label>';
         html += '<select onchange="state.slotForm.endTime = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
         html += '<option value="">선택</option>';
-        generateTimeOptions().forEach(time => {
-            html += '<option value="' + time + '" ' + (state.slotForm.endTime === time ? 'selected' : '') + '>' + time + '</option>';
+        timeOptions.forEach(time => {
+          html += '<option value="' + time + '" ' + (state.slotForm.endTime === time ? 'selected' : '') + '>' + time + '</option>';
         });
         html += '</select></div>';
         
-        html += '</div>'; // end space-y-4
+        html += '</div>';
 
         html += '<div class="flex justify-end gap-3 mt-8">';
         html += '<button onclick="state.showSlotForm = false; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
@@ -800,7 +765,7 @@
 
       // 2. 상담 예약 폼 모달 (Booking Form)
       if (state.showBookingForm) {
-        const availableConsultTimes = addBooking();
+        const availableConsultTimes = getAvailableConsultTimes();
         
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showBookingForm = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 transform transition-all scale-100">';
@@ -820,7 +785,7 @@
         html += '<div class="w-1/3"><label class="block text-sm font-medium text-gray-700 mb-1">학년</label>';
         html += '<select onchange="state.bookingForm.grade = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
         ['elementary', 'middle', 'high'].forEach(g => {
-            html += '<option value="' + g + '" ' + (state.bookingForm.grade === g ? 'selected' : '') + '>' + gradeLabels[g] + '</option>';
+          html += '<option value="' + g + '" ' + (state.bookingForm.grade === g ? 'selected' : '') + '>' + gradeLabels[g] + '</option>';
         });
         html += '</select></div></div>';
         
@@ -829,46 +794,46 @@
         html += '<label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">레벨테스트 병행 (초등 40분, 중/고등 50분 추가)</label></div>';
         
         // Room
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">장소</label>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
         html += '<select onchange="state.bookingForm.room = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
         html += '<option value="">선택</option>';
-        room.forEach(room => {
-            html += '<option value="' + room + '" ' + (state.bookingForm.room === room ? 'selected' : '') + '>' + room + '</option>';
+        availableRoomsForSelectedDate.forEach(room => {
+          html += '<option value="' + room + '" ' + (state.bookingForm.room === room ? 'selected' : '') + '>' + room + '</option>';
         });
         html += '</select></div>';
         
         // Time Slot
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담 시작 시간 (30분 소요)</label>';
         if (state.bookingForm.room && availableConsultTimes.length > 0) {
-            html += '<select onchange="state.bookingForm.time = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
-            html += '<option value="">시간 선택</option>';
-            availableConsultTimes.forEach(time => {
-                html += '<option value="' + time + '" ' + (state.bookingForm.time === time ? 'selected' : '') + '>' + time + ' (상담 시작)</option>';
-            });
-            html += '</select>';
+          html += '<select onchange="state.bookingForm.time = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
+          html += '<option value="">시간 선택</option>';
+          availableConsultTimes.forEach(time => {
+            html += '<option value="' + time + '" ' + (state.bookingForm.time === time ? 'selected' : '') + '>' + time + ' (상담 시작)</option>';
+          });
+          html += '</select>';
         } else if (!state.bookingForm.room) {
-            html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">장소를 먼저 선택해주세요.</p>';
+          html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">상담실을 먼저 선택해주세요.</p>';
         } else {
-             html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/장소에 예약 가능한 시간이 없습니다.</p>';
+          html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/상담실에 예약 가능한 시간이 없습니다.</p>';
         }
         html += '</div>';
 
         if (state.bookingForm.hasLevelTest && state.bookingForm.time) {
-            const levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
-            const testStartTime = addMinutesToTime(state.bookingForm.time, -levelTestMins);
-            const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
-            html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
-            html += '레벨테스트 시간: ' + testStartTime + ' - ' + state.bookingForm.time + '<br>';
-            html += '총 예약 시간: ' + testStartTime + ' - ' + consultEndTime + ' (' + (levelTestMins + 30) + '분)';
-            html += '</div>';
+          const levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
+          const testStartTime = addMinutesToTime(state.bookingForm.time, -levelTestMins);
+          const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
+          html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
+          html += '레벨테스트 시간: ' + testStartTime + ' - ' + state.bookingForm.time + '<br>';
+          html += '총 예약 시간: ' + testStartTime + ' - ' + consultEndTime + ' (' + (levelTestMins + 30) + '분)';
+          html += '</div>';
         } else if (state.bookingForm.time) {
-            const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
-            html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
-            html += '총 예약 시간: ' + state.bookingForm.time + ' - ' + consultEndTime + ' (30분)';
-            html += '</div>';
+          const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
+          html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
+          html += '총 예약 시간: ' + state.bookingForm.time + ' - ' + consultEndTime + ' (30분)';
+          html += '</div>';
         }
         
-        html += '</div>'; // end space-y-4
+        html += '</div>';
 
         html += '<div class="flex justify-end gap-3 mt-8">';
         html += '<button onclick="state.showBookingForm = false; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
@@ -904,27 +869,26 @@
         html += '<div class="flex-1 overflow-y-auto space-y-3 pr-2">';
         
         if (historyBookings.length === 0) {
-            html += '<p class="text-gray-500 text-center py-10">완료되거나 미진행된 상담 내역이 없습니다. (최근 1개월)</p>';
+          html += '<p class="text-gray-500 text-center py-10">완료되거나 미진행된 상담 내역이 없습니다. (최근 1개월)</p>';
         } else {
-            for (let i = 0; i < historyBookings.length; i++) {
-                const booking = historyBookings[i];
-                const isCompleted = booking.status === 'completed';
-                const statusClass = isCompleted ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50';
-                const statusText = isCompleted ? '✓ 완료' : '✗ 미진행';
-                
-                html += '<div class="border-l-4 ' + statusClass + ' p-3 rounded-lg shadow-sm">';
-                html += '<div class="flex justify-between items-start">';
-                html += '<div>';
-                html += '<div class="text-sm font-semibold text-gray-800">' + booking.date + ' | ' + booking.room + ' | ' + gradeLabels[booking.grade] + ' ' + booking.studentName + '</div>';
-                html += '<div class="text-xs text-gray-600 mt-1">🕐 ' + booking.time + ' - ' + booking.endTime + ' | ' + (booking.hasLevelTest ? '레벨테스트 포함' : '상담만') + '</div>';
-                if (!isCompleted && booking.cancelReason) {
-                    html += '<p class="text-xs text-red-700 mt-2 p-1 bg-red-100 rounded">사유: ' + booking.cancelReason + '</p>';
-                }
-                html += '</div>';
-                html += '<div class="text-sm font-bold ' + (isCompleted ? 'text-green-600' : 'text-red-600') + '">' + statusText + '</div>';
-                html += '</div>';
-                html += '</div>';
+          for (let booking of historyBookings) {
+            const isCompleted = booking.status === 'completed';
+            const statusClass = isCompleted ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50';
+            const statusText = isCompleted ? '✓ 완료' : '✗ 미진행';
+            
+            html += '<div class="border-l-4 ' + statusClass + ' p-3 rounded-lg shadow-sm">';
+            html += '<div class="flex justify-between items-start">';
+            html += '<div>';
+            html += '<div class="text-sm font-semibold text-gray-800">' + booking.date + ' | ' + booking.room + ' | ' + gradeLabels[booking.grade] + ' ' + booking.studentName + '</div>';
+            html += '<div class="text-xs text-gray-600 mt-1">🕐 ' + booking.time + ' - ' + booking.endTime + ' | ' + (booking.hasLevelTest ? '레벨테스트 포함' : '상담만') + '</div>';
+            if (!isCompleted && booking.cancelReason) {
+              html += '<p class="text-xs text-red-700 mt-2 p-1 bg-red-100 rounded">사유: ' + booking.cancelReason + '</p>';
             }
+            html += '</div>';
+            html += '<div class="text-sm font-bold ' + (isCompleted ? 'text-green-600' : 'text-red-600') + '">' + statusText + '</div>';
+            html += '</div>';
+            html += '</div>';
+          }
         }
         
         html += '</div>';
@@ -935,38 +899,32 @@
         html += '</div></div>';
       }
 
-      // Append the custom message box UI
       html += renderMessageBox();
 
       document.getElementById('app').innerHTML = html;
     }
 
     function renderMessageBox() {
-        if (!msgState.show) return '';
-        
-        return `
-            <div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-[99] flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">
-                    <h3 class="text-xl font-bold text-gray-800 mb-4">${msgState.type === 'alert' ? '알림' : '확인'}</h3>
-                    <p class="text-gray-700 mb-6">${msgState.message}</p>
-                    <div class="flex justify-end gap-3">
-                        ${msgState.type === 'confirm' ? `<button onclick="executeConfirm(false)" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>` : ''}
-                        <button onclick="executeConfirm(true)" class="px-4 py-2 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 transition shadow-md">${msgState.type === 'alert' ? '확인' : '계속'}</button>
-                    </div>
-                </div>
+      if (!msgState.show) return '';
+      
+      return `
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-[99] flex items-center justify-center p-4">
+          <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">${msgState.type === 'alert' ? '알림' : '확인'}</h3>
+            <p class="text-gray-700 mb-6">${msgState.message}</p>
+            <div class="flex justify-end gap-3">
+              ${msgState.type === 'confirm' ? `<button onclick="executeConfirm(false)" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>` : ''}
+              <button onclick="executeConfirm(true)" class="px-4 py-2 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 transition shadow-md">${msgState.type === 'alert' ? '확인' : '계속'}</button>
             </div>
-        `;
+          </div>
+        </div>
+      `;
     }
 
     window.onload = function () {
       loadFromGoogleSheets();
-      // Set default selected date to today
       state.selectedDate = formatDate(new Date());
     }
   </script>
 </body>
 </html>
-
-
-
-
