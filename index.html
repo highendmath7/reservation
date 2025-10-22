@@ -763,7 +763,7 @@
         html += '<input type="date" value="' + state.slotForm.date + '" onchange="state.slotForm.date = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required></div>';
 
         // Room
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">장소</label>';
         html += '<select onchange="state.slotForm.room = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
         html += '<option value="">선택</option>';
         allRooms.forEach(room => {
@@ -800,7 +800,7 @@
 
       // 2. 상담 예약 폼 모달 (Booking Form)
       if (state.showBookingForm) {
-        const availableConsultTimes = getAvailableConsultTimes();
+        const availableConsultTimes = addBooking();
         
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showBookingForm = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 transform transition-all scale-100">';
@@ -829,7 +829,7 @@
         html += '<label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">레벨테스트 병행 (초등 40분, 중/고등 50분 추가)</label></div>';
         
         // Room
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">장소</label>';
         html += '<select onchange="state.bookingForm.room = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
         html += '<option value="">선택</option>';
         availableRoomsForSelectedDate.forEach(room => {
@@ -847,9 +847,9 @@
             });
             html += '</select>';
         } else if (!state.bookingForm.room) {
-            html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">상담실을 먼저 선택해주세요.</p>';
+            html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">장소를 먼저 선택해주세요.</p>';
         } else {
-             html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/상담실에 예약 가능한 시간이 없습니다.</p>';
+             html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/장소에 예약 가능한 시간이 없습니다.</p>';
         }
         html += '</div>';
 
@@ -966,3 +966,4 @@
   </script>
 </body>
 </html>
+
