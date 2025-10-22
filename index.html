@@ -567,7 +567,7 @@
       const selectedSlots = state.availableSlots.filter(s => s.date === state.selectedDate);
       const selectedBookings = state.bookings.filter(b => b.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
       const allRooms = [...new Set(state.availableSlots.map(s => s.room))].sort();
-      const availableRoomsForSelectedDate = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
+      const room = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
       const today = formatDate(new Date());
       const todayBookings = state.bookings.filter(b => b.date === today).sort((a, b) => a.time.localeCompare(b.time));
       
@@ -966,5 +966,6 @@
   </script>
 </body>
 </html>
+
 
 
