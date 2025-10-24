@@ -260,14 +260,18 @@
       
       let levelTestMins = 0;
       if (state.bookingForm.hasLevelTest) {
-      const isElementary =
-        state.bookingForm.grade.startsWith('elementary') || state.bookingForm.grade === 'elementary';
-        levelTestMins = isElementary ? 40 : 50;
+        const g = String(state.bookingForm.grade || '').trim();
+        const isElementary =
+          g.startsWith('elementary') ||            // 세분화 키: elementary1~6
+          g === 'elementary' ||                    // 구버전 키
+          ['초', '초1','초2','초3','초4','초5','초6'].some(k => g.includes(k)); // 한글 라벨이 저장된 경우 대비
       }
+
+      let levelTestMins = isElementary ? 40 : 50;
       
-      const consultTime = state.bookingForm.time;
-      const startTime = addMinutesToTime(consultTime, -levelTestMins);
-      const endTime = addMinutesToTime(consultTime, 30);
+      const consultStart = timeToMins(booking.consultTime || booking.time);
+      const levelStart   = consultStart - levelTestMins;
+      const levelEnd     = consultStart;
       
       const hasConflict = state.bookings.some(booking => {
         if (booking.date !== state.bookingForm.date || booking.room !== state.bookingForm.room) return false;
@@ -1004,5 +1008,6 @@
   </script>
 </body>
 </html>
+
 
 
