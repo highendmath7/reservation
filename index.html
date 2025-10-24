@@ -74,6 +74,9 @@
     };
 
     const gradeLabels = {
+      elementary: '초등',
+      middle: '중등',
+      high: '고등',
       elementary1: '초1',
       elementary2: '초2',
       elementary3: '초3',
@@ -257,7 +260,8 @@
       
       let levelTestMins = 0;
       if (state.bookingForm.hasLevelTest) {
-        const isElementary = state.bookingForm.grade.startsWith('elementary');
+      const isElementary =
+        state.bookingForm.grade.startsWith('elementary') || state.bookingForm.grade === 'elementary';
         levelTestMins = isElementary ? 40 : 50;
       }
       
@@ -577,6 +581,7 @@
       const availableRoomsForSelectedDate = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
       const today = formatDate(new Date());
       const todayBookings = state.bookings.filter(b => b.date === today).sort((a, b) => a.time.localeCompare(b.time));
+      const gradeLabel = gradeLabels[booking.grade] || '모름';
       
       let html = '<div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">';
       html += '<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">';
@@ -999,4 +1004,5 @@
   </script>
 </body>
 </html>
+
 
