@@ -535,7 +535,6 @@
         b.date === state.bookingForm.date && b.room === state.bookingForm.room && b.status === 'scheduled'
       );
       
-      let levelTestMins = 0;
       if (state.bookingForm.hasLevelTest) {
         levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
       }
@@ -1007,6 +1006,7 @@
   </script>
 </body>
 </html>
+
 
 
 
