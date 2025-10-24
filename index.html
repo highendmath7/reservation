@@ -118,7 +118,7 @@
         
         const bookingsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=bookings');
         const bookingsData = await bookingsResponse.json();
-        state.bookings = bookingsData.filter(booking => bookings.date >= oneMonthAgo && bookings.id);
+        state.bookings = bookingsData.filter(booking => booking.date >= oneMonthAgo && booking.id);
         
         await cleanupOldData(oneMonthAgo);
         
@@ -135,17 +135,17 @@
     async function cleanupOldData(cutoffDate) {
       try {
         const oldSlots = state.availableSlots.filter(slot => slot.date < cutoffDate);
-        const oldBookings = state.bookings.filter(booking => bookings.date < cutoffDate);
+        const oldBookings = state.booking.filter(booking => booking.date < cutoffDate);
         
         for (let slot of oldSlots) {
           await deleteFromGoogleSheets('slots', slot.id);
         }
         
         for (let booking of oldBookings) {
-          await deleteFromGoogleSheets('bookings', bookings.id);
+          await deleteFromGoogleSheets('bookings', booking.id);
         }
         
-        if (oldSlots.length > 0 || oldBookings.length > 0) {
+        if (oldSlots.length > 0 || oldbooking.length > 0) {
           console.log('1달 이전 데이터 삭제 완료');
         }
       } catch (error) {
@@ -268,11 +268,11 @@
 
       let levelTestMins = isElementary ? 40 : 50;
       
-      const consultStart = timeToMins(booking.consultTime || bookings.time);
+      const consultStart = timeToMins(booking.consultTime || booking.time);
       const levelStart   = consultStart - levelTestMins;
       const levelEnd     = consultStart;
       
-      const hasConflict = state.bookings.some(booking => {
+      const hasConflict = state.booking.some(booking => {
         if (booking.date !== state.bookingForm.date || booking.room !== state.bookingForm.room) return false;
         const existingStart = timeToMins(booking.time);
         const existingEnd = timeToMins(booking.endTime);
@@ -319,7 +319,7 @@
         };
         
         await addToGoogleSheets('bookings', newBooking);
-        state.bookings.push(newBooking);
+        state.booking.push(newBooking);
         
         state.bookingForm = {
           studentName: '',
@@ -347,7 +347,7 @@
       render();
       
       try {
-        const booking = state.bookings.find(b => b.id === id);
+        const booking = state.booking.find(b => b.id === id);
         if (!booking) return;
         
         const updatedBooking = {
@@ -359,7 +359,7 @@
         
         await updateInGoogleSheets('bookings', id, updatedBooking);
         
-        const index = state.bookings.findIndex(b => b.id === id);
+        const index = state.booking.findIndex(b => b.id === id);
         state.bookings[index] = updatedBooking;
         
         showCustomAlert(status === 'completed' ? '완료 처리되었습니다!' : '미진행 처리되었습니다!');
@@ -422,7 +422,7 @@
         
         try {
           await deleteFromGoogleSheets('bookings', id);
-          state.bookings = state.bookings.filter(b => b.id !== id);
+          state.bookings = state.booking.filter(b => b.id !== id);
           showCustomAlert('삭제되었습니다!');
         } catch (error) {
           showCustomAlert('삭제 실패!');
@@ -463,7 +463,7 @@
         const date = new Date(year, month, day);
         const dateStr = formatDate(date);
         const hasSlots = state.availableSlots.some(slot => slot.date === dateStr);
-        const hasBooking = state.bookings.some(booking => bookings.date === dateStr);
+        const hasBooking = state.booking.some(booking => booking.date === dateStr);
         const isSelected = state.selectedDate === dateStr;
         const isToday = dateStr === today;
         const isPast = dateStr < today;
@@ -531,7 +531,7 @@
       if (slots.length === 0) return [];
       
       const availableTimes = new Set();
-      const allBookings = state.bookings.filter(b => 
+      const allBookings = state.booking.filter(b => 
         b.date === state.bookingForm.date && b.room === state.bookingForm.room && b.status === 'scheduled'
       );
       
@@ -578,12 +578,12 @@
     function render() {
       const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
       const selectedSlots = state.availableSlots.filter(s => s.date === state.selectedDate);
-      const selectedBookings = state.bookings.filter(b => b.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
+      const selectedBookings = state.booking.filter(b => b.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
       const allRooms = [...new Set(state.availableSlots.map(s => s.room))].sort();
       const availableRoomsForSelectedDate = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
       const today = formatDate(new Date());
-      const todayBookings = state.bookings.filter(b => b.date === today).sort((a, b) => a.time.localeCompare(b.time));
-      const gradeLabel = gradeLabels[b.grade] || '모름';
+      const todayBookings = state.booking.filter(b => b.date === today).sort((a, b) => a.time.localeCompare(b.time));
+      const gradeLabel = gradeLabels[booking.grade] || '모름';
       
       let html = '<div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">';
       html += '<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">';
@@ -604,7 +604,7 @@
         html += '<div class="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 shadow-lg">';
         html += '<h2 class="text-2xl font-bold text-gray-800 mb-4">🔔 오늘의 상담 예약 (' + today + ')</h2>';
         
-        if (todayBookings.length === 0) {
+        if (todaybooking.length === 0) {
           html += '<p class="text-gray-500 text-center py-8">오늘 예약된 상담이 없습니다.</p>';
         } else {
           html += '<div class="space-y-3">';
@@ -712,44 +712,44 @@
           }
           html += '</div><div class="space-y-3">';
           
-          if (selectedBookings.length === 0) {
+          if (selectedbooking.length === 0) {
             html += '<p class="text-gray-500 text-sm py-4">이 날짜에 예약된 상담이 없습니다.</p>';
           } else {
             for (let booking of selectedBookings) {
-              const statusColor = bookings.status === 'completed' ? 'bg-green-50 border-green-300' : 
-                                  bookings.status === 'cancelled' ? 'bg-red-50 border-red-300' : 
+              const statusColor = booking.status === 'completed' ? 'bg-green-50 border-green-300' : 
+                                  booking.status === 'cancelled' ? 'bg-red-50 border-red-300' : 
                                   'bg-blue-50 border-blue-300';
-              const statusText = bookinsg.status === 'completed' ? '✓ 완료' : bookings.status === 'cancelled' ? '✗ 미진행' : '⏳ 예정';
+              const statusText = bookinsg.status === 'completed' ? '✓ 완료' : booking.status === 'cancelled' ? '✗ 미진행' : '⏳ 예정';
               
               html += '<div class="' + statusColor + ' p-4 rounded-xl border flex justify-between items-start shadow-sm">';
               html += '<div class="flex-1">';
               html += '<div class="text-lg font-bold text-gray-800">';
               html += '<span class="text-indigo-600">' + bookinsg.room + '</span> | ';
-              html += '<span class="text-gray-700">' + gradeLabels[bookinsg.grade] + ' ' + bookings.studentName + '</span>';
-              html += ' <span class="text-sm font-medium ' + (bookings.status === 'completed' ? 'text-green-600' : bookings.status === 'cancelled' ? 'text-red-600' : 'text-orange-600') + '">' + statusText + '</span>';
+              html += '<span class="text-gray-700">' + gradeLabels[bookinsg.grade] + ' ' + booking.studentName + '</span>';
+              html += ' <span class="text-sm font-medium ' + (booking.status === 'completed' ? 'text-green-600' : booking.status === 'cancelled' ? 'text-red-600' : 'text-orange-600') + '">' + statusText + '</span>';
               html += '</div>';
               html += '<div class="text-sm text-gray-600 mt-1">';
-              html += '<span>🕐 ' + bookinsg.time + ' - ' + bookings.endTime + '</span>';
+              html += '<span>🕐 ' + bookinsg.time + ' - ' + booking.endTime + '</span>';
               html += '<span class="mx-2">|</span>';
-              html += '<span class="text-indigo-600 font-medium">' + (bookings.hasLevelTest ? '레벨테스트 + 상담' : '상담') + '</span>';
+              html += '<span class="text-indigo-600 font-medium">' + (booking.hasLevelTest ? '레벨테스트 + 상담' : '상담') + '</span>';
               html += '<span class="mx-2">|</span>';
-              html += '<span class="text-gray-500">학교: ' + bookings.school + '</span>';
+              html += '<span class="text-gray-500">학교: ' + booking.school + '</span>';
               html += '</div>';
 
-              if (bookings.hasLevelTest) {
-                html += '<p class="text-xs text-gray-500 mt-1">상담 시작: ' + bookings.consultTime + ' / 테스트 시작: ' + bookings.time + '</p>';
+              if (booking.hasLevelTest) {
+                html += '<p class="text-xs text-gray-500 mt-1">상담 시작: ' + booking.consultTime + ' / 테스트 시작: ' + booking.time + '</p>';
               }
-              if (bookings.status === 'cancelled' && bookings.cancelReason) {
-                html += '<p class="text-sm text-red-700 mt-2 bg-red-100 p-2 rounded-lg border border-red-300">미진행 사유: ' + bookings.cancelReason + '</p>';
+              if (booking.status === 'cancelled' && booking.cancelReason) {
+                html += '<p class="text-sm text-red-700 mt-2 bg-red-100 p-2 rounded-lg border border-red-300">미진행 사유: ' + booking.cancelReason + '</p>';
               }
               html += '</div>';
 
               html += '<div class="flex flex-col gap-1 ml-4">';
-              if (bookings.status === 'scheduled') {
-                html += '<button onclick="updateBookingStatus(\'' + bookings.id + '\', \'completed\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-600 disabled:opacity-50 shadow-sm">✓ 완료</button>';
-                html += '<button onclick="openReasonModal(\'' + bookings.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-orange-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-orange-600 disabled:opacity-50 shadow-sm">✗ 미진행</button>';
+              if (booking.status === 'scheduled') {
+                html += '<button onclick="updateBookingStatus(\'' + booking.id + '\', \'completed\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-600 disabled:opacity-50 shadow-sm">✓ 완료</button>';
+                html += '<button onclick="openReasonModal(\'' + booking.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-orange-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-orange-600 disabled:opacity-50 shadow-sm">✗ 미진행</button>';
               }
-              html += '<button onclick="deleteBooking(\'' + bookings.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-red-50 text-red-700 border border-red-300 px-3 py-1 rounded-lg text-xs hover:bg-red-100 disabled:opacity-50 shadow-sm">삭제</button>';
+              html += '<button onclick="deleteBooking(\'' + booking.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-red-50 text-red-700 border border-red-300 px-3 py-1 rounded-lg text-xs hover:bg-red-100 disabled:opacity-50 shadow-sm">삭제</button>';
               html += '</div></div>';
             }
           }
@@ -938,29 +938,29 @@
 
       // 4. 지난 내역 모달 (History Modal)
       if (state.showHistoryModal) {
-        const historyBookings = state.bookings.filter(b => b.status !== 'scheduled').sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+        const historyBookings = state.booking.filter(b => b.status !== 'scheduled').sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
 
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showHistoryModal = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full h-3/4 flex flex-col p-6 md:p-8 transform transition-all scale-100">';
-        html += '<h3 class="text-2xl font-bold text-gray-800 mb-4">📋 지난 상담 내역 (' + historyBookings.length + '건)</h3>';
+        html += '<h3 class="text-2xl font-bold text-gray-800 mb-4">📋 지난 상담 내역 (' + historybooking.length + '건)</h3>';
         
         html += '<div class="flex-1 overflow-y-auto space-y-3 pr-2">';
         
-        if (historyBookings.length === 0) {
+        if (historybooking.length === 0) {
           html += '<p class="text-gray-500 text-center py-10">완료되거나 미진행된 상담 내역이 없습니다. (최근 1개월)</p>';
         } else {
           for (let booking of historyBookings) {
-            const isCompleted = bookings.status === 'completed';
+            const isCompleted = booking.status === 'completed';
             const statusClass = isCompleted ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50';
             const statusText = isCompleted ? '✓ 완료' : '✗ 미진행';
             
             html += '<div class="border-l-4 ' + statusClass + ' p-3 rounded-lg shadow-sm">';
             html += '<div class="flex justify-between items-start">';
             html += '<div>';
-            html += '<div class="text-sm font-semibold text-gray-800">' + bookings.date + ' | ' + bookings.room + ' | ' + gradeLabels[bookings.grade] + ' ' + bookings.studentName + '</div>';
-            html += '<div class="text-xs text-gray-600 mt-1">🕐 ' + bookings.time + ' - ' + bookings.endTime + ' | ' + (bookings.hasLevelTest ? '레벨테스트 포함' : '상담만') + '</div>';
-            if (!isCompleted && bookings.cancelReason) {
-              html += '<p class="text-xs text-red-700 mt-2 p-1 bg-red-100 rounded">사유: ' + bookings.cancelReason + '</p>';
+            html += '<div class="text-sm font-semibold text-gray-800">' + booking.date + ' | ' + booking.room + ' | ' + gradeLabels[booking.grade] + ' ' + booking.studentName + '</div>';
+            html += '<div class="text-xs text-gray-600 mt-1">🕐 ' + booking.time + ' - ' + booking.endTime + ' | ' + (booking.hasLevelTest ? '레벨테스트 포함' : '상담만') + '</div>';
+            if (!isCompleted && booking.cancelReason) {
+              html += '<p class="text-xs text-red-700 mt-2 p-1 bg-red-100 rounded">사유: ' + booking.cancelReason + '</p>';
             }
             html += '</div>';
             html += '<div class="text-sm font-bold ' + (isCompleted ? 'text-green-600' : 'text-red-600') + '">' + statusText + '</div>';
@@ -1006,6 +1006,7 @@
   </script>
 </body>
 </html>
+
 
 
 
