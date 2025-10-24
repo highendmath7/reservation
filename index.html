@@ -570,18 +570,6 @@
     
     function getAvailableConsultTimes() {
       if (!state.bookingForm.date || !state.bookingForm.room) return [];
-    
-      const slots = (state.availableSlots || []).filter(
-        s => s.date === state.bookingForm.date && s.room === state.bookingForm.room
-      );
-    
-      if (slots.length === 0) return [];
-    
-      const allBookings = (state.bookings || []).filter(
-        b => b.date === state.bookingForm.date &&
-             b.room === state.bookingForm.room &&
-             b.status === 'scheduled'
-      );
       
       if (slots.length === 0) return [];
       
@@ -1061,6 +1049,7 @@
   </script>
 </body>
 </html>
+
 
 
 
