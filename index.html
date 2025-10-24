@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -65,7 +64,7 @@
       bookingForm: {
         studentName: '',
         school: '',
-        grade: 'elementary',
+        grade: 'elementary1',
         hasLevelTest: false,
         date: '',
         time: '',
@@ -74,9 +73,18 @@
     };
 
     const gradeLabels = {
-      elementary: '초등',
-      middle: '중등',
-      high: '고등',
+      elementary1: '초1',
+      elementary2: '초2',
+      elementary3: '초3',
+      elementary4: '초4',
+      elementary5: '초5',
+      elementary6: '초6',
+      middle1: '중1',
+      middle2: '중2',
+      middle3: '중3',
+      high1: '고1',
+      high2: '고2',
+      high3: '고3',
       unknown: '모름'
     };
 
@@ -219,10 +227,11 @@
           room: state.slotForm.room
         };
         await addToGoogleSheets('slots', newSlot);
-        state.availableSlots.push(newSlot);
         
         state.slotForm = { date: '', startTime: '', endTime: '', room: '' };
         state.showSlotForm = false;
+        
+        await loadFromGoogleSheets();
         showCustomAlert('저장되었습니다!');
       } catch (error) {
         console.error('에러:', error);
@@ -240,7 +249,6 @@
         return;
       }
       
-      // 학년을 모르는데 레벨테스트를 선택한 경우 경고
       if (state.bookingForm.hasLevelTest && state.bookingForm.grade === 'unknown') {
         showCustomAlert('학년을 모르는 경우 레벨테스트 시간을 정확히 계산할 수 없습니다. 학년을 선택하거나 레벨테스트 옵션을 해제해주세요.');
         return;
@@ -248,7 +256,8 @@
       
       let levelTestMins = 0;
       if (state.bookingForm.hasLevelTest) {
-        levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
+        const isElementary = state.bookingForm.grade.startsWith('elementary');
+        levelTestMins = isElementary ? 40 : 50;
       }
       
       const consultTime = state.bookingForm.time;
@@ -302,19 +311,19 @@
         };
         
         await addToGoogleSheets('bookings', newBooking);
-        state.bookings.push(newBooking);
         
         state.bookingForm = {
           studentName: '',
           school: '',
-          grade: 'elementary',
+          grade: 'elementary1',
           hasLevelTest: false,
           date: state.bookingForm.date,
           time: '',
           room: state.bookingForm.room
         };
         state.showBookingForm = false;
-        render();
+        
+        await loadFromGoogleSheets();
         showCustomAlert('예약이 등록되었습니다!');
       } catch (error) {
         console.error('에러:', error);
@@ -342,8 +351,7 @@
         
         await updateInGoogleSheets('bookings', id, updatedBooking);
         
-        const index = state.bookings.findIndex(b => b.id === id);
-        state.bookings[index] = updatedBooking;
+        await loadFromGoogleSheets();
         
         showCustomAlert(status === 'completed' ? '완료 처리되었습니다!' : '미진행 처리되었습니다!');
       } catch (error) {
@@ -387,7 +395,8 @@
         
         try {
           await deleteFromGoogleSheets('slots', id);
-          state.availableSlots = state.availableSlots.filter(s => s.id !== id);
+          
+          await loadFromGoogleSheets();
           showCustomAlert('삭제되었습니다!');
         } catch (error) {
           showCustomAlert('삭제 실패!');
@@ -405,7 +414,8 @@
         
         try {
           await deleteFromGoogleSheets('bookings', id);
-          state.bookings = state.bookings.filter(b => b.id !== id);
+          
+          await loadFromGoogleSheets();
           showCustomAlert('삭제되었습니다!');
         } catch (error) {
           showCustomAlert('삭제 실패!');
@@ -520,7 +530,8 @@
       
       let levelTestMins = 0;
       if (state.bookingForm.hasLevelTest) {
-        levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
+        const isElementary = state.bookingForm.grade.startsWith('elementary');
+        levelTestMins = isElementary ? 40 : 50;
       }
       
       const CONSULT_DURATION = 30;
@@ -989,4 +1000,5 @@
   </script>
 </body>
 </html>
+
 
