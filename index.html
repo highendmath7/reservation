@@ -570,8 +570,8 @@
     
     function getAvailableConsultTimes() {
       if (!state.bookingForm.date || !state.bookingForm.room) return [];
-      
-      if (slot.length === 0) return [];
+      const slots = (state.availavleSlots || []).filter(s => s.date === state.bookingForm.date && s.room === state.bookingForm.room);
+      if (slots.length === 0) return [];
       
       const availableTimes = new Set();
       const allBookings = state.bookings.filter(b => 
@@ -585,7 +585,7 @@
       const CONSULT_DURATION = 30;
       const step = 5;
       
-      for (let slot of hasSlots) {
+      for (let slot of slots) {
         const slotStartMins = timeToMins(slot.startTime);
         const slotEndMins = timeToMins(slot.endTime);
         
@@ -1050,6 +1050,7 @@
   </script>
 </body>
 </html>
+
 
 
 
