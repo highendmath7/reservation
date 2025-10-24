@@ -59,6 +59,7 @@
       syncing: false,
       selectedBookingId: null,
       cancelReason: '',
+      cancelReasonType: '',
       slotForm: { date: '', startTime: '', endTime: '', room: '' },
       bookingForm: {
         studentName: '',
@@ -264,13 +265,14 @@
         if (slot.date !== state.bookingForm.date || slot.room !== state.bookingForm.room) return false;
         const slotStart = timeToMins(slot.startTime);
         const slotEnd = timeToMins(slot.endTime);
-        const newStart = timeToMins(startTime);
-        const newEnd = timeToMins(endTime);
-        return (newStart >= slotStart && newEnd <= slotEnd);
+        const consultStartMins = timeToMins(consultTime);
+        const consultEndMins = timeToMins(endTime);
+        // 상담 시간만 슬롯 내에 있으면 됨 (레테는 슬롯 전에 시작 가능)
+        return (consultStartMins >= slotStart && consultEndMins <= slotEnd);
       });
       
       if (!slotOverlap) {
-        showCustomAlert('예약 시간이 상담 가능 시간을 벗어납니다. (테스트 시간 포함)');
+        showCustomAlert('상담 시간이 상담 가능 시간을 벗어납니다.');
         return;
       }
       
@@ -352,15 +354,21 @@
       state.selectedBookingId = id;
       state.showReasonModal = true;
       state.cancelReason = '';
+      state.cancelReasonType = '';
       render();
     }
 
     function submitCancelReason() {
-      if (!state.cancelReason.trim()) {
-        showCustomAlert('사유를 입력해주세요.');
+      if (!state.cancelReasonType) {
+        showCustomAlert('미진행 사유를 선택해주세요.');
         return;
       }
-      updateBookingStatus(state.selectedBookingId, 'cancelled', state.cancelReason);
+      if (state.cancelReasonType === '기타' && !state.cancelReason.trim()) {
+        showCustomAlert('기타 사유를 입력해주세요.');
+        return;
+      }
+      const finalReason = state.cancelReasonType === '기타' ? state.cancelReason : state.cancelReasonType;
+      updateBookingStatus(state.selectedBookingId, 'cancelled', finalReason);
     }
 
     async function deleteSlot(id) {
@@ -510,21 +518,25 @@
       const step = 5;
       
       for (let slot of slots) {
-        const startMins = timeToMins(slot.startTime);
-        const endMins = timeToMins(slot.endTime);
+        const slotStartMins = timeToMins(slot.startTime);
+        const slotEndMins = timeToMins(slot.endTime);
         
-        for (let consultStartMins = startMins; consultStartMins < endMins; consultStartMins += step) {
-          const requiredStartMins = consultStartMins - levelTestMins;
-          const requiredEndMins = consultStartMins + CONSULT_DURATION;
+        // 상담 시작 시간은 슬롯 내에 있어야 함
+        for (let consultStartMins = slotStartMins; consultStartMins <= slotEndMins - CONSULT_DURATION; consultStartMins += step) {
+          const levelTestStartMins = consultStartMins - levelTestMins;
+          const consultEndMins = consultStartMins + CONSULT_DURATION;
           
-          if (requiredStartMins < startMins || requiredEndMins > endMins) continue;
+          // 상담 종료는 슬롯 내, 레벨테스트는 슬롯 시작 전에 시작 가능
+          if (consultEndMins > slotEndMins) continue;
           
           let hasConflict = false;
           for (let booking of allBookings) {
             const bookingStart = timeToMins(booking.time);
             const bookingEnd = timeToMins(booking.endTime);
-            const newStart = requiredStartMins;
-            const newEnd = requiredEndMins;
+            
+            // 레테가 있으면 레테 시작 시간부터, 없으면 상담 시작 시간부터 체크
+            const newStart = state.bookingForm.hasLevelTest ? levelTestStartMins : consultStartMins;
+            const newEnd = consultEndMins;
             
             if (!(newEnd <= bookingStart || newStart >= bookingEnd)) {
               hasConflict = true;
@@ -750,7 +762,7 @@
         }
 
         // Room
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담관</label>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
         html += '<input type="text" value="' + state.slotForm.room + '" oninput="state.slotForm.room = this.value;" placeholder="예: 1관, 2관, 본관" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required></div>';
 
         // Start Time
@@ -812,7 +824,7 @@
         html += '<label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">레벨테스트 병행 (초등 40분, 중/고등 50분 추가)</label></div>';
         
         // Room
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담관</label>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
         html += '<select onchange="state.bookingForm.room = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
         html += '<option value="">선택</option>';
         availableRoomsForBookingDate.forEach(room => {
@@ -830,9 +842,9 @@
           });
           html += '</select>';
         } else if (!state.bookingForm.room) {
-          html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">상담관을 먼저 선택해주세요.</p>';
+          html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">상담실을 먼저 선택해주세요.</p>';
         } else {
-          html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/상담관에 예약 가능한 시간이 없습니다.</p>';
+          html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/상담실에 예약 가능한 시간이 없습니다.</p>';
         }
         html += '</div>';
 
@@ -862,16 +874,36 @@
 
       // 3. 미진행 사유 모달 (Reason Modal)
       if (state.showReasonModal) {
+        const reasonOptions = [
+          { value: '입력 오류', label: '잘못 입력된 예약' },
+          { value: '학생 불참', label: '학생 불참 (노쇼)' },
+          { value: '예약 취소', label: '사전 예약 취소' },
+          { value: '기타', label: '기타 (직접 입력)' }
+        ];
+        
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showReasonModal = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">';
-        html += '<h3 class="text-xl font-bold text-gray-800 mb-4">❌ 미진행 사유 입력</h3>';
+        html += '<h3 class="text-xl font-bold text-gray-800 mb-4">❌ 미진행 사유 선택</h3>';
         
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">사유</label>';
-        html += '<textarea oninput="state.cancelReason = this.value;" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
+        html += '<div class="space-y-4">';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">사유 유형</label>';
+        html += '<select onchange="state.cancelReasonType = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" required>';
+        html += '<option value="">선택해주세요</option>';
+        reasonOptions.forEach(opt => {
+          html += '<option value="' + opt.value + '" ' + (state.cancelReasonType === opt.value ? 'selected' : '') + '>' + opt.label + '</option>';
+        });
+        html += '</select></div>';
+        
+        if (state.cancelReasonType === '기타') {
+          html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">상세 사유</label>';
+          html += '<textarea oninput="state.cancelReason = this.value;" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
+        }
+        html += '</div>';
 
         html += '<div class="flex justify-end gap-3 mt-6">';
-        html += '<button onclick="state.showReasonModal = false; state.selectedBookingId = null; state.cancelReason = \'\'; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
-        html += '<button onclick="submitCancelReason()" ' + (state.syncing || !state.cancelReason ? 'disabled' : '') + ' class="px-4 py-2 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 shadow-md">미진행 처리</button>';
+        html += '<button onclick="state.showReasonModal = false; state.selectedBookingId = null; state.cancelReason = \'\'; state.cancelReasonType = \'\'; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
+        const isDisabled = !state.cancelReasonType || (state.cancelReasonType === '기타' && !state.cancelReason.trim());
+        html += '<button onclick="submitCancelReason()" ' + (state.syncing || isDisabled ? 'disabled' : '') + ' class="px-4 py-2 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 shadow-md">미진행 처리</button>';
         html += '</div>';
         html += '</div></div>';
       }
@@ -946,4 +978,3 @@
   </script>
 </body>
 </html>
-
