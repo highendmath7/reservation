@@ -569,55 +569,96 @@
       return options;
     }
     
-    function getAvailableConsultTimes() {
-      if (!state.bookingForm.date || !state.bookingForm.room) return [];
-      const slots = (state.availavleSlots || []).filter(s => s.date === state.bookingForm.date && s.room === state.bookingForm.room);
-      if (slots.length === 0) return [];
-      
-      const availableTimes = new Set();
-      const allBookings = state.bookings.filter(b => 
-        b.date === state.bookingForm.date && b.room === state.bookingForm.room && b.status === 'scheduled'
-      );
-      
-      if (state.bookingForm.hasLevelTest) {
-        levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
-      }
-      
-      const CONSULT_DURATION = 30;
-      const step = 5;
-      
-      for (let slot of slots) {
-        const slotStartMins = timeToMins(slot.startTime);
-        const slotEndMins = timeToMins(slot.endTime);
-        
-        for (let consultStartMins = slotStartMins; consultStartMins <= slotEndMins - CONSULT_DURATION; consultStartMins += step) {
-          const levelTestStartMins = consultStartMins - levelTestMins;
-          const consultEndMins = consultStartMins + CONSULT_DURATION;
-          
-          if (consultEndMins > slotEndMins) continue;
-          
-          let hasConflict = false;
-          for (let booking of allBookings) {
-            const bookingStart = timeToMins(booking.time);
-            const bookingEnd = timeToMins(booking.endTime);
-            
-            const newStart = state.bookingForm.hasLevelTest ? levelTestStartMins : consultStartMins;
-            const newEnd = consultEndMins;
-            
-            if (!(newEnd <= bookingStart || newStart >= bookingEnd)) {
-              hasConflict = true;
-              break;
-            }
-          }
-          
-          if (!hasConflict) {
-            availableTimes.add(minsToTime(consultStartMins));
+   function getAvailableConsultTimes() {
+    if (!state.bookingForm.date || !state.bookingForm.room) return [];
+  
+    // 1) 해당 날짜·방 슬롯
+    const slots = (state.availableSlots || []).filter(
+      s => (s.date || '').trim().startsWith(state.bookingForm.date) &&
+           (s.room || '').trim() === (state.bookingForm.room || '').trim()
+    );
+    if (slots.length === 0) return [];
+  
+    // 2) 초등 판정 + 레벨테스트 분
+    const g = String(state.bookingForm.grade || '').trim();
+    const isElementary = g.startsWith('elementary') || g === 'elementary' ||
+                         ['초','초1','초2','초3','초4','초5','초6'].some(k => g.includes(k));
+    const CONSULT_DURATION = 30;           // 상담 30분
+    const levelTestMins = state.bookingForm.hasLevelTest ? (isElementary ? 40 : 50) : 0;
+  
+    // 3) 동일 날짜·방의 예약(취소 제외) → 분 단위 구간으로 정규화
+    const normalizedBookings = (state.bookings || [])
+      .filter(b =>
+        (b.date || '').trim().startsWith(state.bookingForm.date) &&
+        (b.room || '').trim() === (state.bookingForm.room || '').trim() &&
+        (b.status || 'scheduled') !== 'cancelled'
+      )
+      .map(b => {
+        // booking.time: 대개 레벨테스트 시작(혹은 startTime), consultTime: 상담 시작
+        const consultStartStr = (b.consultTime || '').trim();
+        const timeStr         = (b.time || b.startTime || '').trim();
+        const endStr          = (b.endTime || '').trim();
+  
+        // 시작 시각: 레벨테스트 있으면 levelStart, 없으면 상담 시작으로 가정
+        // (time이 levelStart를 담고 있다면 그대로 사용)
+        let startM = timeToMins(timeStr);
+        if (!timeStr && consultStartStr) startM = timeToMins(consultStartStr); // fallback
+  
+        // 종료 시각: 없으면 계산 (레벨테스트+상담 or 상담만)
+        let endM = timeToMins(endStr);
+        if (!endStr) {
+          const consultM = consultStartStr ? timeToMins(consultStartStr) : startM + (b.hasLevelTest ? (isElementary ? 40 : 50) : 0);
+          endM = (b.hasLevelTest ? consultM + 30 : startM + 30);
+        }
+        return { startM, endM };
+      })
+      .filter(x => Number.isFinite(x.startM) && Number.isFinite(x.endM) && x.endM > x.startM);
+  
+    // 4) 슬롯 내에서 5분 단위 후보 시간을 생성하며 충돌 검사
+    const availableTimes = new Set();
+    const step = 5;
+  
+    for (const slot of slots) {
+      const slotStartM = timeToMins(slot.startTime || slot.time);
+      const slotEndM   = timeToMins(slot.endTime);
+      if (!Number.isFinite(slotStartM) || !Number.isFinite(slotEndM) || slotEndM <= slotStartM) continue;
+  
+      for (let consultStartM = slotStartM;
+           consultStartM <= slotEndM - CONSULT_DURATION;
+           consultStartM += step) {
+  
+        const levelStartM = consultStartM - levelTestMins;
+        const consultEndM = consultStartM + CONSULT_DURATION;
+  
+        // 레벨테스트가 있으면, 전체 구간이 슬롯 안에 들어가야 함
+        if (levelTestMins > 0 && levelStartM < slotStartM) continue;
+        if (consultEndM > slotEndM) continue;
+  
+        // 충돌 검사 (하나라도 겹치면 제외)
+        const newStart = levelTestMins > 0 ? levelStartM : consultStartM;
+        const newEnd   = consultEndM;
+  
+        let conflict = false;
+        for (const r of normalizedBookings) {
+          // [newStart, newEnd) 와 [r.startM, r.endM) 겹치면 충돌
+          if (!(newEnd <= r.startM || newStart >= r.endM)) {
+            conflict = true;
+            break;
           }
         }
+        if (!conflict) {
+          availableTimes.add(minsToTime(consultStartM));
+        }
       }
-      
-      return Array.from(availableTimes).sort();
     }
+  
+    // 디버그: 전부 막힐 때 원인 파악용
+    // if (availableTimes.size === 0) {
+    //   console.warn('No times:', { slots, normalizedBookings, levelTestMins });
+    // }
+  
+    return Array.from(availableTimes).sort();
+  }
 
     function render() {
       const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
@@ -1051,6 +1092,7 @@
   </script>
 </body>
 </html>
+
 
 
 
