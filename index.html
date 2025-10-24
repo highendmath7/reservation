@@ -105,37 +105,84 @@
       return formatDate(date);
     }
 
-    async function loadFromGoogleSheets() {
-      state.loading = true;
+   async function loadFromGoogleSheets() {
+    state.loading = true;
+    render();
+  
+    // 안전 헬퍼들
+    const oneMonthAgo = getOneMonthAgo();                // 'YYYY-MM-DD' 가정
+    const toArray = (x) => Array.isArray(x)
+      ? x
+      : (Array.isArray(x?.bookings) ? x.bookings
+      : (Array.isArray(x?.data) ? x.data : []));
+    const isRecent = (d) => typeof d === 'string' && d >= oneMonthAgo;
+  
+    // 레거시/혼합 스키마 방어용 정규화
+    const normalizeSlot = (s) => ({
+      ...s,
+      date: (s?.date ?? '').toString().trim(),
+      id: s?.id ?? '',
+    });
+  
+    const normalizeBooking = (b) => {
+      const rawGrade = (b?.grade ?? '').toString().trim();
+      return {
+        ...b,
+        id: b?.id ?? '',
+        date: (b?.date ?? '').toString().trim(),
+        // 시트가 startTime를 쓰는 케이스 방어
+        time: b?.time ?? b?.startTime ?? '',
+        endTime: b?.endTime ?? '',
+        room: b?.room ?? '',
+        consultTime: b?.consultTime ?? '',
+  
+        // 상태 기본값
+        status: b?.status ?? 'scheduled',
+        cancelReason: b?.cancelReason ?? '',
+        completedAt: b?.completedAt ?? '',
+  
+        // grade 혼재 방어 (초등/중등/고등/세분화/한글 라벨)
+        grade: rawGrade,
+        _isElementary:
+          rawGrade.startsWith('elementary') ||
+          rawGrade === 'elementary' ||
+          ['초','초1','초2','초3','초4','초5','초6'].some(k => rawGrade.includes(k)),
+      };
+    };
+  
+    try {
+      // --- slots ---
+      const slotsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=slots');
+      const slotsRaw = await slotsResponse.json();
+      const slotsArr = toArray(slotsRaw).map(normalizeSlot);
+      state.availableSlots = slotsArr.filter(s => s.id && isRecent(s.date));
+  
+      // --- bookings ---
+      const bookingsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=bookings');
+      const bookingsRaw = await bookingsResponse.json();
+      const bookingsArr = toArray(bookingsRaw).map(normalizeBooking);
+      state.bookings = bookingsArr.filter(b => b.id && isRecent(b.date));
+  
+      // (선택) 정렬: 날짜→시간→방
+      state.bookings.sort((a, b) => (a.date + a.time + a.room).localeCompare(b.date + b.time + b.room));
+  
+      // 오래된 데이터 정리 (실패해도 앱은 계속 동작)
+      try { await cleanupOldData(oneMonthAgo); } catch (e) { console.warn('cleanupOldData failed:', e); }
+    } catch (err) {
+      console.error('loadFromGoogleSheets error:', err);
+      // 실패 시에도 배열 보장
+      state.availableSlots = state.availableSlots || [];
+      state.bookings = state.bookings || [];
+    } finally {
+      state.loading = false;
       render();
-      
-      try {
-        const oneMonthAgo = getOneMonthAgo();
-        
-        const slotsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=slots');
-        const slotsData = await slotsResponse.json();
-        state.availableSlots = slotsData.filter(slot => slot.date >= oneMonthAgo && slot.id);
-        
-        const bookingsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=bookings');
-        const bookingsData = await bookingsResponse.json();
-        state.bookings = bookingsData.filter(booking => booking.date >= oneMonthAgo && booking.id);
-        
-        await cleanupOldData(oneMonthAgo);
-        
-        console.log('데이터 로드 완료');
-      } catch (error) {
-        console.error('데이터 로드 실패:', error);
-        showCustomAlert('데이터를 불러오는데 실패했습니다.');
-      } finally {
-        state.loading = false;
-        render();
-      }
     }
+  }
 
     async function cleanupOldData(cutoffDate) {
       try {
-        const oldSlots = state.availableSlots.filter(slot => slot.date < cutoffDate);
-        const oldBookings = state.booking.filter(booking => booking.date < cutoffDate);
+        const oldSlots     = (state.availableSlots || []).filter(slot => slot.date < cutoffDate && slot.id);
+        const oldBookings  = (state.bookings || []).filter(booking => booking.date < cutoffDate && booking.id);
         
         for (let slot of oldSlots) {
           await deleteFromGoogleSheets('slots', slot.id);
@@ -145,7 +192,7 @@
           await deleteFromGoogleSheets('bookings', booking.id);
         }
         
-        if (oldSlots.length > 0 || oldbooking.length > 0) {
+        if (oldSlots.length > 0 || oldBookings.length > 0) {
           console.log('1달 이전 데이터 삭제 완료');
         }
       } catch (error) {
@@ -272,7 +319,7 @@
       const levelStart   = consultStart - levelTestMins;
       const levelEnd     = consultStart;
       
-      const hasConflict = state.booking.some(booking => {
+      const hasConflict = state.bookings.some(booking => {
         if (booking.date !== state.bookingForm.date || booking.room !== state.bookingForm.room) return false;
         const existingStart = timeToMins(booking.time);
         const existingEnd = timeToMins(booking.endTime);
@@ -319,7 +366,7 @@
         };
         
         await addToGoogleSheets('bookings', newBooking);
-        state.booking.push(newBooking);
+        state.bookings.push(newBooking);
         
         state.bookingForm = {
           studentName: '',
@@ -347,7 +394,7 @@
       render();
       
       try {
-        const booking = state.booking.find(b => b.id === id);
+        const booking = state.bookings.find(b => b.id === id);
         if (!booking) return;
         
         const updatedBooking = {
@@ -359,7 +406,7 @@
         
         await updateInGoogleSheets('bookings', id, updatedBooking);
         
-        const index = state.booking.findIndex(b => b.id === id);
+        const index = state.bookings.findIndex(b => b.id === id);
         state.bookings[index] = updatedBooking;
         
         showCustomAlert(status === 'completed' ? '완료 처리되었습니다!' : '미진행 처리되었습니다!');
@@ -422,7 +469,7 @@
         
         try {
           await deleteFromGoogleSheets('bookings', id);
-          state.bookings = state.booking.filter(b => b.id !== id);
+          state.bookings = state.bookings.filter(b => b.id !== id);
           showCustomAlert('삭제되었습니다!');
         } catch (error) {
           showCustomAlert('삭제 실패!');
@@ -463,7 +510,7 @@
         const date = new Date(year, month, day);
         const dateStr = formatDate(date);
         const hasSlots = state.availableSlots.some(slot => slot.date === dateStr);
-        const hasBooking = state.booking.some(booking => booking.date === dateStr);
+        const hasBooking = state.bookings.some(booking => booking.date === dateStr);
         const isSelected = state.selectedDate === dateStr;
         const isToday = dateStr === today;
         const isPast = dateStr < today;
@@ -523,15 +570,23 @@
     
     function getAvailableConsultTimes() {
       if (!state.bookingForm.date || !state.bookingForm.room) return [];
-      
-      const slots = state.availableSlots.filter(s => 
-        s.date === state.bookingForm.date && s.room === state.bookingForm.room
+    
+      const slots = (state.availableSlots || []).filter(
+        s => s.date === state.bookingForm.date && s.room === state.bookingForm.room
+      );
+    
+      if (slots.length === 0) return [];
+    
+      const allBookings = (state.bookings || []).filter(
+        b => b.date === state.bookingForm.date &&
+             b.room === state.bookingForm.room &&
+             b.status === 'scheduled'
       );
       
       if (slots.length === 0) return [];
       
       const availableTimes = new Set();
-      const allBookings = state.booking.filter(b => 
+      const allBookings = state.bookings.filter(b => 
         b.date === state.bookingForm.date && b.room === state.bookingForm.room && b.status === 'scheduled'
       );
       
@@ -578,11 +633,11 @@
     function render() {
       const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
       const selectedSlots = state.availableSlots.filter(s => s.date === state.selectedDate);
-      const selectedBookings = state.booking.filter(b => b.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
+      const selectedBookings = state.bookings.filter(b => b.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
       const allRooms = [...new Set(state.availableSlots.map(s => s.room))].sort();
       const availableRoomsForSelectedDate = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
       const today = formatDate(new Date());
-      const todayBookings = state.booking.filter(b => b.date === today).sort((a, b) => a.time.localeCompare(b.time));
+      const todayBookings = state.bookings.filter(b => b.date === today).sort((a, b) => a.time.localeCompare(b.time));
       const gradeLabel = gradeLabels[booking.grade] || '모름';
       
       let html = '<div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">';
@@ -938,7 +993,7 @@
 
       // 4. 지난 내역 모달 (History Modal)
       if (state.showHistoryModal) {
-        const historyBookings = state.booking.filter(b => b.status !== 'scheduled').sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+        const historyBookings = state.bookings.filter(b => b.status !== 'scheduled').sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
 
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showHistoryModal = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full h-3/4 flex flex-col p-6 md:p-8 transform transition-all scale-100">';
@@ -1006,6 +1061,7 @@
   </script>
 </body>
 </html>
+
 
 
 
