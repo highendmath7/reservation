@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -75,7 +76,8 @@
     const gradeLabels = {
       elementary: '초등',
       middle: '중등',
-      high: '고등'
+      high: '고등',
+      unknown: '모름'
     };
 
     function formatDate(date) {
@@ -238,6 +240,12 @@
         return;
       }
       
+      // 학년을 모르는데 레벨테스트를 선택한 경우 경고
+      if (state.bookingForm.hasLevelTest && state.bookingForm.grade === 'unknown') {
+        showCustomAlert('학년을 모르는 경우 레벨테스트 시간을 정확히 계산할 수 없습니다. 학년을 선택하거나 레벨테스트 옵션을 해제해주세요.');
+        return;
+      }
+      
       let levelTestMins = 0;
       if (state.bookingForm.hasLevelTest) {
         levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
@@ -267,7 +275,6 @@
         const slotEnd = timeToMins(slot.endTime);
         const consultStartMins = timeToMins(consultTime);
         const consultEndMins = timeToMins(endTime);
-        // 상담 시간만 슬롯 내에 있으면 됨 (레테는 슬롯 전에 시작 가능)
         return (consultStartMins >= slotStart && consultEndMins <= slotEnd);
       });
       
@@ -283,7 +290,7 @@
         const newBooking = {
           id: Date.now().toString(),
           studentName: state.bookingForm.studentName,
-          school: state.bookingForm.school,
+          school: state.bookingForm.school || '모름',
           grade: state.bookingForm.grade,
           hasLevelTest: state.bookingForm.hasLevelTest,
           date: state.bookingForm.date,
@@ -307,6 +314,7 @@
           room: state.bookingForm.room
         };
         state.showBookingForm = false;
+        render();
         showCustomAlert('예약이 등록되었습니다!');
       } catch (error) {
         console.error('에러:', error);
@@ -346,6 +354,7 @@
         state.showReasonModal = false;
         state.selectedBookingId = null;
         state.cancelReason = '';
+        state.cancelReasonType = '';
         render();
       }
     }
@@ -521,12 +530,10 @@
         const slotStartMins = timeToMins(slot.startTime);
         const slotEndMins = timeToMins(slot.endTime);
         
-        // 상담 시작 시간은 슬롯 내에 있어야 함
         for (let consultStartMins = slotStartMins; consultStartMins <= slotEndMins - CONSULT_DURATION; consultStartMins += step) {
           const levelTestStartMins = consultStartMins - levelTestMins;
           const consultEndMins = consultStartMins + CONSULT_DURATION;
           
-          // 상담 종료는 슬롯 내, 레벨테스트는 슬롯 시작 전에 시작 가능
           if (consultEndMins > slotEndMins) continue;
           
           let hasConflict = false;
@@ -534,7 +541,6 @@
             const bookingStart = timeToMins(booking.time);
             const bookingEnd = timeToMins(booking.endTime);
             
-            // 레테가 있으면 레테 시작 시간부터, 없으면 상담 시작 시간부터 체크
             const newStart = state.bookingForm.hasLevelTest ? levelTestStartMins : consultStartMins;
             const newEnd = consultEndMins;
             
@@ -579,7 +585,7 @@
       } else {
         // 오늘의 상담 예약
         html += '<div class="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 shadow-lg">';
-        html += '<h2 class="text-2xl font-bold text-gray-800 mb-4">📍 오늘의 상담 예약 (' + today + ')</h2>';
+        html += '<h2 class="text-2xl font-bold text-gray-800 mb-4">🔔 오늘의 상담 예약 (' + today + ')</h2>';
         
         if (todayBookings.length === 0) {
           html += '<p class="text-gray-500 text-center py-8">오늘 예약된 상담이 없습니다.</p>';
@@ -810,11 +816,11 @@
         // School & Grade
         html += '<div class="flex gap-4">';
         html += '<div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">학교</label>';
-        html += '<input type="text" value="' + state.bookingForm.school + '" oninput="state.bookingForm.school = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="학교"></div>';
+        html += '<input type="text" value="' + state.bookingForm.school + '" oninput="state.bookingForm.school = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="학교명 (모를 경우 \'모름\')"></div>';
 
         html += '<div class="w-1/3"><label class="block text-sm font-medium text-gray-700 mb-1">학년</label>';
         html += '<select onchange="state.bookingForm.grade = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
-        ['elementary', 'middle', 'high'].forEach(g => {
+        ['elementary', 'middle', 'high', 'unknown'].forEach(g => {
           html += '<option value="' + g + '" ' + (state.bookingForm.grade === g ? 'selected' : '') + '>' + gradeLabels[g] + '</option>';
         });
         html += '</select></div></div>';
@@ -822,6 +828,10 @@
         // Level Test Checkbox
         html += '<div class="flex items-center"><input id="hasLevelTest" type="checkbox" ' + (state.bookingForm.hasLevelTest ? 'checked' : '') + ' onchange="state.bookingForm.hasLevelTest = this.checked; state.bookingForm.time = \'\'; render();" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">';
         html += '<label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">레벨테스트 병행 (초등 40분, 중/고등 50분 추가)</label></div>';
+        
+        if (state.bookingForm.hasLevelTest && state.bookingForm.grade === 'unknown') {
+          html += '<div class="text-sm text-red-600 p-3 bg-red-50 rounded-lg border border-red-200">⚠️ 학년을 모르는 경우 레벨테스트 시간을 정확히 계산할 수 없습니다. 학년을 선택하거나 레벨테스트 옵션을 해제해주세요.</div>';
+        }
         
         // Room
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
@@ -896,7 +906,7 @@
         
         if (state.cancelReasonType === '기타') {
           html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">상세 사유</label>';
-          html += '<textarea oninput="state.cancelReason = this.value;" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
+          html += '<textarea oninput="state.cancelReason = this.value; render();" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
         }
         html += '</div>';
 
@@ -907,6 +917,7 @@
         html += '</div>';
         html += '</div></div>';
       }
+
 
       // 4. 지난 내역 모달 (History Modal)
       if (state.showHistoryModal) {
@@ -978,3 +989,4 @@
   </script>
 </body>
 </html>
+
