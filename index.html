@@ -4,6 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>상담 예약 시스템</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -182,13 +185,13 @@
   
     try {
       // --- slots ---
-      const slotsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=slots');
+      const slotsResponse = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=slots&ts=${Date.now()}`, {cache: 'no-store'});
       const slotsRaw = await slotsResponse.json();
       const slotsArr = toArray(slotsRaw).map(normalizeSlot);
       state.availableSlots = slotsArr.filter(s => s.id && isRecent(s.date));
   
       // --- bookings ---
-      const bookingsResponse = await fetch(GOOGLE_SCRIPT_URL + '?sheet=bookings');
+      const bookingsResponse = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=bookings&ts=${Date.now()}`, {cache: 'no-store'});
       const bookingsRaw = await bookingsResponse.json();
       const bookingsArr = toArray(bookingsRaw).map(normalizeBooking);
       state.bookings = bookingsArr.filter(b => b.id && isRecent(b.date));
@@ -1134,6 +1137,7 @@
   </script>
 </body>
 </html>
+
 
 
 
