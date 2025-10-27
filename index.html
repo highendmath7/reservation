@@ -115,12 +115,42 @@
       ? x
       : (Array.isArray(x?.bookings) ? x.bookings
       : (Array.isArray(x?.data) ? x.data : []));
-    const isRecent = (d) => typeof d === 'string' && d >= oneMonthAgo;
+    // 날짜 문자열을 어떤 형식이 와도 YYYY-MM-DD로 표준화
+    function toISODateStr(s) {
+      if (!s) return '';
+      // 이미 YYYY-MM-DD면
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    
+      // 2025. 10. 27 / 2025.10.27 / 2025/10/27
+      let m = s.match(/^\s*(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
+      if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+    
+      // 10/27/2025 같은 M/D/YYYY
+      m = s.match(/^\s*(\d{1,2})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{4})/);
+      if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+    
+      const d = new Date(s);
+      if (!isNaN(d)) {
+        const y = d.getFullYear();
+        const m2 = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2,'0');
+        return `${y}-${m2}-${dd}`;
+      }
+      return '';
+    }
+    
+    // 교체 전: const isRecent = (d) => typeof d === 'string' && d >= oneMonthAgo;
+    // 교체 후:
+    const isRecent = (d) => {
+      const iso = toISODateStr(d);
+      return iso && iso >= oneMonthAgo;
+    };
+
   
     // 레거시/혼합 스키마 방어용 정규화
     const normalizeSlot = (s) => ({
       ...s,
-      date: (s?.date ?? '').toString().trim(),
+      date: toISODateStr((s?.date ?? '').toString().trim()),
       id: s?.id ?? '',
     });
   
@@ -129,7 +159,7 @@
       return {
         ...b,
         id: b?.id ?? '',
-        date: (b?.date ?? '').toString().trim(),
+        date: toISODateStr((b?.date ?? '').toString().trim()),
         // 시트가 startTime를 쓰는 케이스 방어
         time: b?.time ?? b?.startTime ?? '',
         endTime: b?.endTime ?? '',
@@ -669,12 +699,16 @@
     function render() {
       const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
       const selectedSlots = state.availableSlots.filter(s => s.date === state.selectedDate);
-      const selectedBookings = state.bookings.filter(b => b.date === state.selectedDate).sort((a, b) => a.time.localeCompare(b.time));
+      const selectedBookings = state.bookings
+        .filter(b => (b.date || '').startsWith(state.selectedDate))
+        .sort((a, b) => a.time.localeCompare(b.time));
       const allRooms = [...new Set(state.availableSlots.map(s => s.room))].sort();
       const availableRoomsForSelectedDate = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
       const today = formatDate(new Date());
       const bookings = state.bookings || [];
-      const todayBookings = bookings.filter(b => b.date === today).sort((a, b) => a.time.localeCompare(b.time));
+      const todayBookings = bookings
+        .filter(b => (b.date || '').startsWith(today))
+        .sort((a, b) => a.time.localeCompare(b.time));
       
       let html = '<div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">';
       html += '<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">';
@@ -1100,6 +1134,7 @@
   </script>
 </body>
 </html>
+
 
 
 
