@@ -342,6 +342,10 @@
         return !(newEnd <= existingStart || newStart >= existingEnd);
       });
       
+      if (hasConflict) {
+        showCustomAlert('선택한 시간에 다른 예약과 겹칩니다.');
+        return;
+      }
       // ✅ 슬롯 검증 (상담 시간만 체크)
       const slotOverlap = state.availableSlots.some(slot => {
         if (slot.date !== state.bookingForm.date || 
@@ -1096,6 +1100,7 @@
   </script>
 </body>
 </html>
+
 
 
 
