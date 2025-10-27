@@ -962,7 +962,8 @@
           html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/상담실에 예약 가능한 시간이 없습니다.</p>';
         }
         html += '</div>';
-
+        // 상담 종료 시간만 슬롯 내에 있으면 됨 (레벨테스트는 슬롯 시작 전에 시작 가능)
+        if (consultEndM > slotEndM) continue;
         if (state.bookingForm.hasLevelTest && state.bookingForm.time) {
           const levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
           const testStartTime = addMinutesToTime(state.bookingForm.time, -levelTestMins);
@@ -1094,6 +1095,7 @@
   </script>
 </body>
 </html>
+
 
 
 
