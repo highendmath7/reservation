@@ -110,6 +110,8 @@
 
    async function loadFromGoogleSheets() {
     state.loading = true;
+    console.log('GET url:', `${GOOGLE_SCRIPT_URL}?sheet=bookings`);
+    console.log('bookings len after fetch:', state.bookings?.length, state.bookings?.slice(0,2));
     render();
   
     // 안전 헬퍼들
@@ -1143,6 +1145,7 @@
   </script>
 </body>
 </html>
+
 
 
 
