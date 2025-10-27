@@ -629,12 +629,15 @@
            consultStartM <= slotEndM - CONSULT_DURATION;
            consultStartM += step) {
   
+
         const levelStartM = consultStartM - levelTestMins;
         const consultEndM = consultStartM + CONSULT_DURATION;
   
+        // 상담 종료 시간만 슬롯 내에 있으면 됨 (레벨테스트는 슬롯 시작 전에 시작 가능)
+        if (consultEndM > slotEndM) continue;
+  
         // 레벨테스트가 있으면, 전체 구간이 슬롯 안에 들어가야 함
         if (levelTestMins > 0 && levelStartM < slotStartM) continue;
-        if (consultEndM > slotEndM) continue;
   
         // 충돌 검사 (하나라도 겹치면 제외)
         const newStart = levelTestMins > 0 ? levelStartM : consultStartM;
@@ -962,8 +965,6 @@
           html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/상담실에 예약 가능한 시간이 없습니다.</p>';
         }
         html += '</div>';
-        // 상담 종료 시간만 슬롯 내에 있으면 됨 (레벨테스트는 슬롯 시작 전에 시작 가능)
-        if (consultEndM > slotEndM) continue;
         if (state.bookingForm.hasLevelTest && state.bookingForm.time) {
           const levelTestMins = state.bookingForm.grade === 'elementary' ? 40 : 50;
           const testStartTime = addMinutesToTime(state.bookingForm.time, -levelTestMins);
@@ -1095,6 +1096,7 @@
   </script>
 </body>
 </html>
+
 
 
 
