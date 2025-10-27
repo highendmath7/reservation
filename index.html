@@ -338,8 +338,8 @@
         if (slot.date !== state.bookingForm.date || slot.room !== state.bookingForm.room) return false;
         const slotStart = timeToMins(slot.startTime);
         const slotEnd = timeToMins(slot.endTime);
-        const consultStartMins = timeToMins(consultTime);
-        const consultEndMins = timeToMins(endTime);
+        const consultStartMins = timeToMins(consultTime);  // 상담 시작
+        const consultEndMins = timeToMins(consultEndTime);  // 상담 종료
         return (consultStartMins >= slotStart && consultEndMins <= slotEnd);
       });
       
@@ -595,23 +595,10 @@
       )
       .map(b => {
         // booking.time: 대개 레벨테스트 시작(혹은 startTime), consultTime: 상담 시작
-        const consultStartStr = (b.consultTime || '').trim();
-        const timeStr         = (b.time || b.startTime || '').trim();
-        const endStr          = (b.endTime || '').trim();
-  
-        // 시작 시각: 레벨테스트 있으면 levelStart, 없으면 상담 시작으로 가정
-        // (time이 levelStart를 담고 있다면 그대로 사용)
-        let startM = timeToMins(timeStr);
-        if (!consultStartStr) {
-          // levelTestMins = 위에서 계산한 (초등 40 / 중고등 50 / or 0)
-          startM = startM - levelTestMins; 
-}
-        // 종료 시각: 없으면 계산 (레벨테스트+상담 or 상담만)
-        let endM = timeToMins(endStr);
-        if (!endStr) {
-          const consultM = consultStartStr ? timeToMins(consultStartStr) : startM + (b.hasLevelTest ? (isElementary ? 40 : 50) : 0);
-          endM = (b.hasLevelTest ? consultM + 30 : startM + 30);
-        }
+        const timeStr = (b.time || '').trim();
+        const endStr = (b.endTime || '').trim();
+        const startM = timeToMins(timeStr);
+        const endM = timeToMins(endStr);
         return { startM, endM };
       })
       .filter(x => Number.isFinite(x.startM) && Number.isFinite(x.endM) && x.endM > x.startM);
@@ -634,10 +621,7 @@
         const consultEndM = consultStartM + CONSULT_DURATION;
   
         // 상담 종료 시간만 슬롯 내에 있으면 됨 (레벨테스트는 슬롯 시작 전에 시작 가능)
-        if (consultEndM > slotEndM) continue;
-  
-        // 레벨테스트가 있으면, 전체 구간이 슬롯 안에 들어가야 함
-        if (levelTestMins > 0 && levelStartM < slotStartM) continue;
+        if (consultStartM < slotStartM || consultEndM > slotEndM) continue;
   
         // 충돌 검사 (하나라도 겹치면 제외)
         const newStart = levelTestMins > 0 ? levelStartM : consultStartM;
@@ -1096,6 +1080,7 @@
   </script>
 </body>
 </html>
+
 
 
 
