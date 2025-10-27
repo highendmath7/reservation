@@ -208,6 +208,10 @@
       state.bookings = state.bookings || [];
     } finally {
       state.loading = false;
+      // 안전망: 아직 선택된 날짜가 없다면 오늘로 설정
+      if (!state.selectedDate) {
+        state.selectedDate = formatDate(new Date());
+      }
       render();
     }
   }
@@ -1130,13 +1134,16 @@
       `;
     }
 
-    window.onload = function () {
-      loadFromGoogleSheets();
-      state.selectedDate = formatDate(new Date());
-    }
+    window.onload = async function () {
+      await loadFromGoogleSheets();                  // 1) 데이터 다 받아온 다음
+      const today = formatDate(new Date());
+      handleDateClick(today, false);                 // 2) 오늘 날짜를 선택해서 렌더 강제
+    };
+
   </script>
 </body>
 </html>
+
 
 
 
