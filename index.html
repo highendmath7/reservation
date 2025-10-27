@@ -807,17 +807,17 @@
               const statusColor = booking.status === 'completed' ? 'bg-green-50 border-green-300' : 
                                   booking.status === 'cancelled' ? 'bg-red-50 border-red-300' : 
                                   'bg-blue-50 border-blue-300';
-              const statusText = bookinsg.status === 'completed' ? '✓ 완료' : booking.status === 'cancelled' ? '✗ 미진행' : '⏳ 예정';
+              const statusText = booking.status === 'completed' ? '✓ 완료' : booking.status === 'cancelled' ? '✗ 미진행' : '⏳ 예정';
               
               html += '<div class="' + statusColor + ' p-4 rounded-xl border flex justify-between items-start shadow-sm">';
               html += '<div class="flex-1">';
               html += '<div class="text-lg font-bold text-gray-800">';
-              html += '<span class="text-indigo-600">' + bookinsg.room + '</span> | ';
-              html += '<span class="text-gray-700">' + gradeLabels[bookinsg.grade] + ' ' + booking.studentName + '</span>';
+              html += '<span class="text-indigo-600">' + booking.room + '</span> | ';
+              html += '<span class="text-gray-700">' + gradeLabels[booking.grade] + ' ' + booking.studentName + '</span>';
               html += ' <span class="text-sm font-medium ' + (booking.status === 'completed' ? 'text-green-600' : booking.status === 'cancelled' ? 'text-red-600' : 'text-orange-600') + '">' + statusText + '</span>';
               html += '</div>';
               html += '<div class="text-sm text-gray-600 mt-1">';
-              html += '<span>🕐 ' + bookinsg.time + ' - ' + booking.endTime + '</span>';
+              html += '<span>🕐 ' + booking.time + ' - ' + booking.endTime + '</span>';
               html += '<span class="mx-2">|</span>';
               html += '<span class="text-indigo-600 font-medium">' + (booking.hasLevelTest ? '레벨테스트 + 상담' : '상담') + '</span>';
               html += '<span class="mx-2">|</span>';
@@ -1096,6 +1096,7 @@
   </script>
 </body>
 </html>
+
 
 
 
