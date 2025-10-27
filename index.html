@@ -245,6 +245,8 @@
       formData.append('action', 'add');
       formData.append('data', JSON.stringify(data));
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
+      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
     }
 
     async function updateInGoogleSheets(sheet, id, data) {
@@ -254,6 +256,8 @@
       formData.append('id', id);
       formData.append('data', JSON.stringify(data));
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
+      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
     }
 
     async function deleteFromGoogleSheets(sheet, id) {
@@ -262,6 +266,8 @@
       formData.append('action', 'delete');
       formData.append('id', id);
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
+      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
     }
 
     function timeToMins(time) {
@@ -1145,6 +1151,7 @@
   </script>
 </body>
 </html>
+
 
 
 
