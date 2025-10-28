@@ -1134,9 +1134,7 @@
         
         if (state.cancelReasonType === '기타') {
           html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">상세 사유</label>';
-          <textarea oninput="state.cancelReason = this.value;" rows="3"
-            class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500"
-            placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
+          <textarea oninput="state.cancelReason = this.value;" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
         }
         html += '</div>';
 
@@ -1221,6 +1219,7 @@
   </script>
 </body>
 </html>
+
 
 
 
