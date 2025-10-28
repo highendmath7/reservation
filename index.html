@@ -50,6 +50,7 @@
     }
 
     let state = {
+      editingBooking: null
       availableSlots: [],
       bookings: [],
       showSlotForm: false,
@@ -337,6 +338,39 @@
         render();
       }
     }
+    function openBookingForm(bookingId = null) {
+      if (bookingId) {
+        const booking = state.bookings.find(b => b.id === bookingId);
+        if (!booking) return;
+        state.editingBooking = bookingId;
+    
+        // 기존 예약 정보 불러오기
+        state.bookingForm = {
+          studentName: booking.studentName,
+          school: booking.school,
+          grade: booking.grade,
+          hasLevelTest: booking.hasLevelTest,
+          date: booking.date,
+          time: booking.consultTime || booking.time,
+          room: booking.room
+        };
+      } else {
+        // 신규 등록 시 초기화
+        state.editingBooking = null;
+        state.bookingForm = {
+          studentName: '',
+          school: '',
+          grade: 'elementary1',
+          hasLevelTest: false,
+          date: state.selectedDate,
+          time: '',
+          room: ''
+        };
+      }
+    
+      state.showBookingForm = true;
+      render();
+    }
 
     async function addBooking() {
       if (!state.bookingForm.studentName || !state.bookingForm.date || 
@@ -414,8 +448,7 @@
       render();
       
       try {
-        const newBooking = {
-          id: Date.now().toString(),
+        const bookingData = {
           studentName: state.bookingForm.studentName,
           school: state.bookingForm.school || '모름',
           grade: state.bookingForm.grade,
@@ -427,29 +460,39 @@
           consultTime: consultTime,
           status: 'scheduled'
         };
-        
-        await addToGoogleSheets('bookings', newBooking);
-        state.bookings.push(newBooking);
-        
-        state.bookingForm = {
-          studentName: '',
-          school: '',
-          grade: 'elementary1',
-          hasLevelTest: false,
-          date: state.bookingForm.date,
-          time: '',
-          room: state.bookingForm.room
-        };
+      
+        if (state.editingBooking) {
+          // ✅ 수정 모드
+          const existingBooking = state.bookings.find(b => b.id === state.editingBooking);
+          await updateInGoogleSheets('bookings', state.editingBooking, {
+            ...existingBooking,
+            ...bookingData
+          });
+          const index = state.bookings.findIndex(b => b.id === state.editingBooking);
+          state.bookings[index] = { ...existingBooking, ...bookingData };
+          showCustomAlert('예약이 수정되었습니다!');
+        } else {
+          // 신규 등록
+          const newBooking = {
+            id: Date.now().toString(),
+            ...bookingData
+          };
+          await addToGoogleSheets('bookings', newBooking);
+          state.bookings.push(newBooking);
+          showCustomAlert('예약이 등록되었습니다!');
+        }
+      
         state.showBookingForm = false;
+        state.editingBooking = null;
         render();
-        showCustomAlert('예약이 등록되었습니다!');
       } catch (error) {
         console.error('에러:', error);
-        showCustomAlert('예약 등록 실패!');
+        showCustomAlert('예약 처리 실패!');
       } finally {
         state.syncing = false;
         render();
       }
+
     }
 
     async function updateBookingStatus(id, status, reason = '') {
@@ -890,6 +933,7 @@
                 html += '<button onclick="updateBookingStatus(\'' + booking.id + '\', \'completed\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-600 disabled:opacity-50 shadow-sm">✓ 완료</button>';
                 html += '<button onclick="openReasonModal(\'' + booking.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-orange-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-orange-600 disabled:opacity-50 shadow-sm">✗ 미진행</button>';
               }
+              html += '<button onclick="openBookingForm(\'' + booking.id + '\')" class="bg-yellow-400 text-white px-3 py-1 rounded-lg text-xs hover:bg-yellow-500 shadow-sm">✏️ 수정</button>';
               html += '<button onclick="deleteBooking(\'' + booking.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-red-50 text-red-700 border border-red-300 px-3 py-1 rounded-lg text-xs hover:bg-red-100 disabled:opacity-50 shadow-sm">삭제</button>';
               html += '</div></div>';
             }
@@ -960,7 +1004,10 @@
       if (state.showBookingForm) {
         const availableConsultTimes = getAvailableConsultTimes();
         const availableRoomsForBookingDate = [...new Set(state.availableSlots.filter(s => s.date === state.bookingForm.date).map(s => s.room))].sort();
-        
+        html += '<button onclick="addBooking()" ' + (state.syncing ? 'disabled' : '') + 
+                ' class="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50 shadow-md">' +
+                (state.editingBooking ? '수정 완료' : '예약 등록') + '</button>';
+
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showBookingForm = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 transform transition-all scale-100">';
         html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">➕ 상담 예약 등록 (' + state.bookingForm.date + ')</h3>';
@@ -1151,6 +1198,7 @@
   </script>
 </body>
 </html>
+
 
 
 
