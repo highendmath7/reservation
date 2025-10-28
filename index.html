@@ -68,7 +68,7 @@
       bookingForm: {
         studentName: '',
         school: '',
-        grade: 'elementary',
+        grade: 'elementary1',
         hasLevelTest: false,
         date: '',
         time: '',
@@ -163,6 +163,9 @@
         cancelReason: b?.cancelReason ?? '',
         completedAt: b?.completedAt ?? '',
         grade: rawGrade,
+        studentName: b?.studentName ?? '',
+        school: b?.school ?? '모름',
+        hasLevelTest: b?.hasLevelTest ?? false,
         _isElementary:
           rawGrade.startsWith('elementary') ||
           rawGrade === 'elementary' ||
@@ -199,8 +202,8 @@
 
     async function cleanupOldData(cutoffDate) {
       try {
-        const oldSlots     = (state.availableSlots || []).filter(slot => slot.date < cutoffDate && slot.id);
-        const oldBookings  = (state.bookings || []).filter(booking => booking.date < cutoffDate && booking.id);
+        const oldSlots = (state.availableSlots || []).filter(slot => slot.date < cutoffDate && slot.id);
+        const oldBookings = (state.bookings || []).filter(booking => booking.date < cutoffDate && booking.id);
         
         for (let slot of oldSlots) {
           await deleteFromGoogleSheets('slots', slot.id);
@@ -323,16 +326,24 @@
         if (!booking) return;
         
         state.editingBooking = bookingId;
+        
+        const timeValue = booking.hasLevelTest 
+          ? booking.time
+          : (booking.consultTime || booking.time);
+        
         state.bookingForm = {
           studentName: booking.studentName,
           school: booking.school,
           grade: booking.grade,
           hasLevelTest: booking.hasLevelTest,
           date: booking.date,
-          time: booking.hasLevelTest ? booking.time : booking.consultTime || booking.time,
+          time: timeValue,
           room: booking.room
         };
+      } else {
+        state.editingBooking = null;
       }
+      
       state.showBookingForm = true;
       render();
     }
@@ -368,6 +379,7 @@
       
       const hasConflict = state.bookings.some(booking => {
         if (state.editingBooking && booking.id === state.editingBooking) return false;
+        
         if (booking.date !== state.bookingForm.date || 
             booking.room !== state.bookingForm.room) return false;
         if (booking.status === 'cancelled') return false;
@@ -674,7 +686,7 @@
   
     for (const slot of slots) {
       const slotStartM = timeToMins(slot.startTime || slot.time);
-      const slotEndM   = timeToMins(slot.endTime);
+      const slotEndM = timeToMins(slot.endTime);
       if (!Number.isFinite(slotStartM) || !Number.isFinite(slotEndM) || slotEndM <= slotStartM) continue;
   
       for (let levelTestStartM = slotStartM - levelTestMins;
@@ -711,8 +723,6 @@
       const selectedBookings = state.bookings
         .filter(b => (b.date || '').startsWith(state.selectedDate))
         .sort((a, b) => a.time.localeCompare(b.time));
-      const allRooms = [...new Set(state.availableSlots.map(s => s.room))].sort();
-      const availableRoomsForSelectedDate = [...new Set(state.availableSlots.filter(s => s.date === state.selectedDate).map(s => s.room))].sort();
       const today = formatDate(new Date());
       const bookings = state.bookings || [];
       const todayBookings = bookings
@@ -893,7 +903,104 @@
       if (state.showSlotForm) {
         const timeOptions = generateTimeOptions(state.slotForm.date);
         
-        html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showSlotForm = false; render(); }">';
+        html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showReasonModal = false; render(); }">';
+        html += '<div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">';
+        html += '<h3 class="text-xl font-bold text-gray-800 mb-4">⌫ 미진행 사유 선택</h3>';
+        
+        html += '<div class="space-y-4">';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">사유 유형</label>';
+        html += '<select onchange="state.cancelReasonType = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" required>';
+        html += '<option value="">선택해주세요</option>';
+        reasonOptions.forEach(opt => {
+          html += '<option value="' + opt.value + '" ' + (state.cancelReasonType === opt.value ? 'selected' : '') + '>' + opt.label + '</option>';
+        });
+        html += '</select></div>';
+        
+        if (state.cancelReasonType === '기타') {
+          html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">상세 사유</label>';
+          html += '<textarea oninput="state.cancelReason = this.value;" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
+        }
+        html += '</div>';
+
+        html += '<div class="flex justify-end gap-3 mt-6">';
+        html += '<button onclick="state.showReasonModal = false; state.selectedBookingId = null; state.cancelReason = \'\'; state.cancelReasonType = \'\'; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
+        const isDisabled = !state.cancelReasonType || (state.cancelReasonType === '기타' && !state.cancelReason.trim());
+        html += '<button onclick="submitCancelReason()" ' + (state.syncing || isDisabled ? 'disabled' : '') + ' class="px-4 py-2 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 shadow-md">미진행 처리</button>';
+        html += '</div>';
+        html += '</div></div>';
+      }
+
+      if (state.showHistoryModal) {
+        const historyBookings = state.bookings.filter(b => b.status !== 'scheduled').sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+
+        html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showHistoryModal = false; render(); }">';
+        html += '<div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full h-3/4 flex flex-col p-6 md:p-8 transform transition-all scale-100">';
+        html += '<h3 class="text-2xl font-bold text-gray-800 mb-4">📋 지난 상담 내역 (' + historyBookings.length + '건)</h3>';
+        
+        html += '<div class="flex-1 overflow-y-auto space-y-3 pr-2">';
+        
+        if (historyBookings.length === 0) {
+          html += '<p class="text-gray-500 text-center py-10">완료되거나 미진행된 상담 내역이 없습니다. (최근 1개월)</p>';
+        } else {
+          for (let booking of historyBookings) {
+            const isCompleted = booking.status === 'completed';
+            const statusClass = isCompleted ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50';
+            const statusText = isCompleted ? '✓ 완료' : '✗ 미진행';
+            
+            html += '<div class="border-l-4 ' + statusClass + ' p-3 rounded-lg shadow-sm">';
+            html += '<div class="flex justify-between items-start">';
+            html += '<div>';
+            html += '<div class="text-sm font-semibold text-gray-800">' + booking.date + ' | ' + booking.room + ' | ' + gradeLabels[booking.grade] + ' ' + booking.studentName + '</div>';
+            html += '<div class="text-xs text-gray-600 mt-1">🕐 ' + booking.time + ' - ' + booking.endTime + ' | ' + (booking.hasLevelTest ? '레벨테스트 포함' : '상담만') + '</div>';
+            if (!isCompleted && booking.cancelReason) {
+              html += '<p class="text-xs text-red-700 mt-2 p-1 bg-red-100 rounded">사유: ' + booking.cancelReason + '</p>';
+            }
+            html += '</div>';
+            html += '<div class="text-sm font-bold ' + (isCompleted ? 'text-green-600' : 'text-red-600') + '">' + statusText + '</div>';
+            html += '</div>';
+            html += '</div>';
+          }
+        }
+        
+        html += '</div>';
+        
+        html += '<div class="flex justify-end mt-6">';
+        html += '<button onclick="state.showHistoryModal = false; render();" class="px-4 py-2 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 transition shadow-md">닫기</button>';
+        html += '</div>';
+        html += '</div></div>';
+      }
+
+      html += renderMessageBox();
+
+      document.getElementById('app').innerHTML = html;
+    }
+
+    function renderMessageBox() {
+      if (!msgState.show) return '';
+      
+      return `
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-[99] flex items-center justify-center p-4">
+          <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">${msgState.type === 'alert' ? '알림' : '확인'}</h3>
+            <p class="text-gray-700 mb-6">${msgState.message}</p>
+            <div class="flex justify-end gap-3">
+              ${msgState.type === 'confirm' ? `<button onclick="executeConfirm(false)" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>` : ''}
+              <button onclick="executeConfirm(true)" class="px-4 py-2 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 transition shadow-md">${msgState.type === 'alert' ? '확인' : '계속'}</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    window.onload = async function () {
+      await loadFromGoogleSheets();
+      const today = formatDate(new Date());
+      handleDateClick(today, false);
+    };
+
+  </script>
+</body>
+</html>bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showSlotForm = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 transform transition-all scale-100">';
         html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">➕ 상담 가능 시간 추가</h3>';
         
@@ -1031,101 +1138,4 @@
           { value: '기타', label: '기타 (직접 입력)' }
         ];
         
-        html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showReasonModal = false; render(); }">';
-        html += '<div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">';
-        html += '<h3 class="text-xl font-bold text-gray-800 mb-4">⌫ 미진행 사유 선택</h3>';
-        
-        html += '<div class="space-y-4">';
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">사유 유형</label>';
-        html += '<select onchange="state.cancelReasonType = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" required>';
-        html += '<option value="">선택해주세요</option>';
-        reasonOptions.forEach(opt => {
-          html += '<option value="' + opt.value + '" ' + (state.cancelReasonType === opt.value ? 'selected' : '') + '>' + opt.label + '</option>';
-        });
-        html += '</select></div>';
-        
-        if (state.cancelReasonType === '기타') {
-          html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">상세 사유</label>';
-          html += '<textarea oninput="state.cancelReason = this.value;" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
-        }
-        html += '</div>';
-
-        html += '<div class="flex justify-end gap-3 mt-6">';
-        html += '<button onclick="state.showReasonModal = false; state.selectedBookingId = null; state.cancelReason = \'\'; state.cancelReasonType = \'\'; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
-        const isDisabled = !state.cancelReasonType || (state.cancelReasonType === '기타' && !state.cancelReason.trim());
-        html += '<button onclick="submitCancelReason()" ' + (state.syncing || isDisabled ? 'disabled' : '') + ' class="px-4 py-2 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition disabled:opacity-50 shadow-md">미진행 처리</button>';
-        html += '</div>';
-        html += '</div></div>';
-      }
-
-      if (state.showHistoryModal) {
-        const historyBookings = state.bookings.filter(b => b.status !== 'scheduled').sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
-
-        html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showHistoryModal = false; render(); }">';
-        html += '<div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full h-3/4 flex flex-col p-6 md:p-8 transform transition-all scale-100">';
-        html += '<h3 class="text-2xl font-bold text-gray-800 mb-4">📋 지난 상담 내역 (' + historyBookings.length + '건)</h3>';
-        
-        html += '<div class="flex-1 overflow-y-auto space-y-3 pr-2">';
-        
-        if (historyBookings.length === 0) {
-          html += '<p class="text-gray-500 text-center py-10">완료되거나 미진행된 상담 내역이 없습니다. (최근 1개월)</p>';
-        } else {
-          for (let booking of historyBookings) {
-            const isCompleted = booking.status === 'completed';
-            const statusClass = isCompleted ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50';
-            const statusText = isCompleted ? '✓ 완료' : '✗ 미진행';
-            
-            html += '<div class="border-l-4 ' + statusClass + ' p-3 rounded-lg shadow-sm">';
-            html += '<div class="flex justify-between items-start">';
-            html += '<div>';
-            html += '<div class="text-sm font-semibold text-gray-800">' + booking.date + ' | ' + booking.room + ' | ' + gradeLabels[booking.grade] + ' ' + booking.studentName + '</div>';
-            html += '<div class="text-xs text-gray-600 mt-1">🕐 ' + booking.time + ' - ' + booking.endTime + ' | ' + (booking.hasLevelTest ? '레벨테스트 포함' : '상담만') + '</div>';
-            if (!isCompleted && booking.cancelReason) {
-              html += '<p class="text-xs text-red-700 mt-2 p-1 bg-red-100 rounded">사유: ' + booking.cancelReason + '</p>';
-            }
-            html += '</div>';
-            html += '<div class="text-sm font-bold ' + (isCompleted ? 'text-green-600' : 'text-red-600') + '">' + statusText + '</div>';
-            html += '</div>';
-            html += '</div>';
-          }
-        }
-        
-        html += '</div>';
-        
-        html += '<div class="flex justify-end mt-6">';
-        html += '<button onclick="state.showHistoryModal = false; render();" class="px-4 py-2 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 transition shadow-md">닫기</button>';
-        html += '</div>';
-        html += '</div></div>';
-      }
-
-      html += renderMessageBox();
-
-      document.getElementById('app').innerHTML = html;
-    }
-
-    function renderMessageBox() {
-      if (!msgState.show) return '';
-      
-      return `
-        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-[99] flex items-center justify-center p-4">
-          <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">${msgState.type === 'alert' ? '알림' : '확인'}</h3>
-            <p class="text-gray-700 mb-6">${msgState.message}</p>
-            <div class="flex justify-end gap-3">
-              ${msgState.type === 'confirm' ? `<button onclick="executeConfirm(false)" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>` : ''}
-              <button onclick="executeConfirm(true)" class="px-4 py-2 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 transition shadow-md">${msgState.type === 'alert' ? '확인' : '계속'}</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    window.onload = async function () {
-      await loadFromGoogleSheets();
-      const today = formatDate(new Date());
-      handleDateClick(today, false);
-    };
-
-  </script>
-</body>
-</html>
+        html += '<div class="fixed inset-0
