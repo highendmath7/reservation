@@ -1040,11 +1040,20 @@
         html += '</select></div></div>';
         
         // Level Test Checkbox
-        html += '<div class="flex items-center"><input id="hasLevelTest" type="checkbox" '
-                + (state.bookingForm.hasLevelTest ? 'checked' : '')
-                + ' onchange="state.bookingForm.hasLevelTest=this.checked; state.bookingForm.testRoom=\\'\\'; state.bookingForm.time=\\'\\'; render();"'
-                + ' class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">';
-        html += '<label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">레벨테스트 병행 (초등 40분, 중/고등 50분 추가)</label></div>';
+        html += `
+          <div class="flex items-center">
+            <input
+              id="hasLevelTest"
+              type="checkbox"
+              ${state.bookingForm.hasLevelTest ? 'checked' : ''}
+              onchange="state.bookingForm.hasLevelTest=this.checked; state.bookingForm.testRoom=''; state.bookingForm.time=''; render();"
+              class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            >
+            <label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">
+              레벨테스트 병행 (초등 40분, 중/고등 50분 추가)
+            </label>
+          </div>
+        `;
         
         if (state.bookingForm.hasLevelTest && state.bookingForm.grade === 'unknown') {
           html += '<div class="text-sm text-red-600 p-3 bg-red-50 rounded-lg border border-red-200">⚠️ 학년을 모르는 경우 레벨테스트 시간을 정확히 계산할 수 없습니다. 학년을 선택하거나 레벨테스트 옵션을 해제해주세요.</div>';
@@ -1212,6 +1221,7 @@
   </script>
 </body>
 </html>
+
 
 
 
