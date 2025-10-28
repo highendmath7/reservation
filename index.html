@@ -1008,7 +1008,18 @@
         </div>
       `;
     }
-
+    window.openSlotForm = openSlotForm;
+    window.addSlot = addSlot;
+    window.openBookingForm = openBookingForm;
+    window.addBooking = addBooking;
+    window.updateBookingStatus = updateBookingStatus;
+    window.openReasonModal = openReasonModal;
+    window.submitCancelReason = submitCancelReason;
+    window.deleteSlot = deleteSlot;
+    window.deleteBooking = deleteBooking;
+    window.prevMonth = prevMonth;
+    window.nextMonth = nextMonth;
+    window.handleDateClick = handleDateClick;
     window.onload = async function () {
       await loadFromGoogleSheets();
       const today = formatDate(new Date());
@@ -1211,6 +1222,7 @@
         ];
         
         html += '<div class="fixed inset-0
+
 
 
 
