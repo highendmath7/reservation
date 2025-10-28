@@ -331,6 +331,7 @@
           ? booking.time
           : (booking.consultTime || booking.time);
         
+        // ✅ 기존 예약 내용 그대로 불러오기
         state.bookingForm = {
           studentName: booking.studentName,
           school: booking.school,
@@ -341,13 +342,22 @@
           room: booking.room
         };
       } else {
+        // 신규 등록 시만 초기화
         state.editingBooking = null;
+        state.bookingForm = {
+          studentName: '',
+          school: '',
+          grade: 'elementary1',
+          hasLevelTest: false,
+          date: state.selectedDate,
+          time: '',
+          room: ''
+        };
       }
       
       state.showBookingForm = true;
       render();
     }
-
     async function addBooking() {
       if (!state.bookingForm.studentName || !state.bookingForm.date || 
           !state.bookingForm.time || !state.bookingForm.room) {
@@ -430,8 +440,9 @@
           consultTime: consultTime,
           status: 'scheduled'
         };
-
+    
         if (state.editingBooking) {
+          // ✅ 수정 모드 처리
           const existingBooking = state.bookings.find(b => b.id === state.editingBooking);
           await updateInGoogleSheets('bookings', state.editingBooking, {
             ...existingBooking,
@@ -441,6 +452,7 @@
           state.bookings[index] = { ...existingBooking, ...bookingData };
           showCustomAlert('예약이 수정되었습니다!');
         } else {
+          // 신규 등록
           const newBooking = {
             id: Date.now().toString(),
             ...bookingData
@@ -449,16 +461,21 @@
           state.bookings.push(newBooking);
           showCustomAlert('예약이 등록되었습니다!');
         }
-        
-        state.bookingForm = {
-          studentName: '',
-          school: '',
-          grade: 'elementary1',
-          hasLevelTest: false,
-          date: state.bookingForm.date,
-          time: '',
-          room: state.bookingForm.room
-        };
+    
+        // ✅ 수정 후에는 폼 초기화하지 않음
+        if (!state.editingBooking) {
+          state.bookingForm = {
+            studentName: '',
+            school: '',
+            grade: 'elementary1',
+            hasLevelTest: false,
+            date: state.bookingForm.date,
+            time: '',
+            room: state.bookingForm.room
+          };
+        }
+    
+        // 닫기 + 상태 초기화
         state.editingBooking = null;
         state.showBookingForm = false;
         render();
@@ -1139,3 +1156,4 @@
         ];
         
         html += '<div class="fixed inset-0
+
