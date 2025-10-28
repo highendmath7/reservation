@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -57,6 +56,7 @@
       showHistoryModal: false,
       showReasonModal: false,
       editingSlot: null,
+      editingBooking: null,
       currentDate: new Date(),
       selectedDate: null,
       loading: false,
@@ -110,27 +110,21 @@
 
    async function loadFromGoogleSheets() {
     state.loading = true;
-    console.log('GET url:', `${GOOGLE_SCRIPT_URL}?sheet=bookings`);
-    console.log('bookings len after fetch:', state.bookings?.length, state.bookings?.slice(0,2));
     render();
   
-    // 안전 헬퍼들
-    const oneMonthAgo = getOneMonthAgo();                // 'YYYY-MM-DD' 가정
+    const oneMonthAgo = getOneMonthAgo();
     const toArray = (x) => Array.isArray(x)
       ? x
       : (Array.isArray(x?.bookings) ? x.bookings
       : (Array.isArray(x?.data) ? x.data : []));
-    // 날짜 문자열을 어떤 형식이 와도 YYYY-MM-DD로 표준화
+    
     function toISODateStr(s) {
       if (!s) return '';
-      // 이미 YYYY-MM-DD면
       if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
     
-      // 2025. 10. 27 / 2025.10.27 / 2025/10/27
       let m = s.match(/^\s*(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
       if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
     
-      // 10/27/2025 같은 M/D/YYYY
       m = s.match(/^\s*(\d{1,2})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{4})/);
       if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
     
@@ -144,15 +138,11 @@
       return '';
     }
     
-    // 교체 전: const isRecent = (d) => typeof d === 'string' && d >= oneMonthAgo;
-    // 교체 후:
     const isRecent = (d) => {
       const iso = toISODateStr(d);
       return iso && iso >= oneMonthAgo;
     };
-
   
-    // 레거시/혼합 스키마 방어용 정규화
     const normalizeSlot = (s) => ({
       ...s,
       date: toISODateStr((s?.date ?? '').toString().trim()),
@@ -165,18 +155,13 @@
         ...b,
         id: b?.id ?? '',
         date: toISODateStr((b?.date ?? '').toString().trim()),
-        // 시트가 startTime를 쓰는 케이스 방어
         time: b?.time ?? b?.startTime ?? '',
         endTime: b?.endTime ?? '',
         room: b?.room ?? '',
         consultTime: b?.consultTime ?? '',
-  
-        // 상태 기본값
         status: b?.status ?? 'scheduled',
         cancelReason: b?.cancelReason ?? '',
         completedAt: b?.completedAt ?? '',
-  
-        // grade 혼재 방어 (초등/중등/고등/세분화/한글 라벨)
         grade: rawGrade,
         _isElementary:
           rawGrade.startsWith('elementary') ||
@@ -186,31 +171,25 @@
     };
   
     try {
-      // --- slots ---
       const slotsResponse = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=slots&ts=${Date.now()}`, {cache: 'no-store'});
       const slotsRaw = await slotsResponse.json();
       const slotsArr = toArray(slotsRaw).map(normalizeSlot);
       state.availableSlots = slotsArr.filter(s => s.id && isRecent(s.date));
   
-      // --- bookings ---
       const bookingsResponse = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=bookings&ts=${Date.now()}`, {cache: 'no-store'});
       const bookingsRaw = await bookingsResponse.json();
       const bookingsArr = toArray(bookingsRaw).map(normalizeBooking);
       state.bookings = bookingsArr.filter(b => b.id && isRecent(b.date));
   
-      // (선택) 정렬: 날짜→시간→방
       state.bookings.sort((a, b) => (a.date + a.time + a.room).localeCompare(b.date + b.time + b.room));
   
-      // 오래된 데이터 정리 (실패해도 앱은 계속 동작)
       try { await cleanupOldData(oneMonthAgo); } catch (e) { console.warn('cleanupOldData failed:', e); }
     } catch (err) {
       console.error('loadFromGoogleSheets error:', err);
-      // 실패 시에도 배열 보장
       state.availableSlots = state.availableSlots || [];
       state.bookings = state.bookings || [];
     } finally {
       state.loading = false;
-      // 안전망: 아직 선택된 날짜가 없다면 오늘로 설정
       if (!state.selectedDate) {
         state.selectedDate = formatDate(new Date());
       }
@@ -245,8 +224,8 @@
       formData.append('action', 'add');
       formData.append('data', JSON.stringify(data));
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
-      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
-      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
+      await loadFromGoogleSheets();
+      handleDateClick(state.selectedDate, false);
     }
 
     async function updateInGoogleSheets(sheet, id, data) {
@@ -256,8 +235,8 @@
       formData.append('id', id);
       formData.append('data', JSON.stringify(data));
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
-      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
-      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
+      await loadFromGoogleSheets();
+      handleDateClick(state.selectedDate, false);
     }
 
     async function deleteFromGoogleSheets(sheet, id) {
@@ -266,8 +245,8 @@
       formData.append('action', 'delete');
       formData.append('id', id);
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
-      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
-      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
+      await loadFromGoogleSheets();
+      handleDateClick(state.selectedDate, false);
     }
 
     function timeToMins(time) {
@@ -338,6 +317,26 @@
       }
     }
 
+    function openBookingForm(bookingId = null) {
+      if (bookingId) {
+        const booking = state.bookings.find(b => b.id === bookingId);
+        if (!booking) return;
+        
+        state.editingBooking = bookingId;
+        state.bookingForm = {
+          studentName: booking.studentName,
+          school: booking.school,
+          grade: booking.grade,
+          hasLevelTest: booking.hasLevelTest,
+          date: booking.date,
+          time: booking.hasLevelTest ? booking.time : booking.consultTime || booking.time,
+          room: booking.room
+        };
+      }
+      state.showBookingForm = true;
+      render();
+    }
+
     async function addBooking() {
       if (!state.bookingForm.studentName || !state.bookingForm.date || 
           !state.bookingForm.time || !state.bookingForm.room) {
@@ -345,36 +344,30 @@
         return;
       }
       
-      // 학년을 모르는데 레벨테스트를 선택한 경우 경고
       if (state.bookingForm.hasLevelTest && state.bookingForm.grade === 'unknown') {
         showCustomAlert('학년을 모르는 경우 레벨테스트 시간을 정확히 계산할 수 없습니다. 학년을 선택하거나 레벨테스트 옵션을 해제해주세요.');
         return;
       }
       
-      // ✅ 학년 판정을 if문 밖으로 이동
       const g = String(state.bookingForm.grade || '').trim();
       const isElementary =
         g.startsWith('elementary') ||
         g === 'elementary' ||
         ['초', '초1','초2','초3','초4','초5','초6'].some(k => g.includes(k));
       
-      console.log('Grade check:', { grade: g, isElementary: isElementary });
-      
-      // ✅ 레벨테스트 시간 계산 (if문 밖에서)
       const levelTestMins = state.bookingForm.hasLevelTest ? (isElementary ? 40 : 50) : 0;
       
-      // ✅ 올바른 변수명 사용
-      const consultTime = state.bookingForm.time;  // 상담 시작 시간 (사용자 선택)
-      const consultEndTime = addMinutesToTime(consultTime, 30);  // 상담 종료 (30분 후)
+      const levelTestStartTime = state.bookingForm.time;
+      const consultTime = state.bookingForm.hasLevelTest 
+        ? addMinutesToTime(levelTestStartTime, levelTestMins)
+        : levelTestStartTime;
+      const consultEndTime = addMinutesToTime(consultTime, 30);
       
-      // ✅ 전체 예약 시간 계산
-      const startTime = levelTestMins > 0 
-        ? addMinutesToTime(consultTime, -levelTestMins)  // 레벨테스트 시작
-        : consultTime;  // 레벨테스트 없으면 상담 시작
+      const startTime = levelTestStartTime;
       const endTime = consultEndTime;
       
-      // ✅ 충돌 검사 (올바른 변수 사용)
       const hasConflict = state.bookings.some(booking => {
+        if (state.editingBooking && booking.id === state.editingBooking) return false;
         if (booking.date !== state.bookingForm.date || 
             booking.room !== state.bookingForm.room) return false;
         if (booking.status === 'cancelled') return false;
@@ -391,7 +384,7 @@
         showCustomAlert('선택한 시간에 다른 예약과 겹칩니다.');
         return;
       }
-      // ✅ 슬롯 검증 (상담 시간만 체크)
+
       const slotOverlap = state.availableSlots.some(slot => {
         if (slot.date !== state.bookingForm.date || 
             slot.room !== state.bookingForm.room) return false;
@@ -403,7 +396,6 @@
         
         return (consultStartMins >= slotStart && consultEndMins <= slotEnd);
       });
-      
 
       if (!slotOverlap) {
         showCustomAlert('상담 시간이 상담 가능 시간을 벗어납니다.');
@@ -414,8 +406,7 @@
       render();
       
       try {
-        const newBooking = {
-          id: Date.now().toString(),
+        const bookingData = {
           studentName: state.bookingForm.studentName,
           school: state.bookingForm.school || '모름',
           grade: state.bookingForm.grade,
@@ -427,9 +418,25 @@
           consultTime: consultTime,
           status: 'scheduled'
         };
-        
-        await addToGoogleSheets('bookings', newBooking);
-        state.bookings.push(newBooking);
+
+        if (state.editingBooking) {
+          const existingBooking = state.bookings.find(b => b.id === state.editingBooking);
+          await updateInGoogleSheets('bookings', state.editingBooking, {
+            ...existingBooking,
+            ...bookingData
+          });
+          const index = state.bookings.findIndex(b => b.id === state.editingBooking);
+          state.bookings[index] = { ...existingBooking, ...bookingData };
+          showCustomAlert('예약이 수정되었습니다!');
+        } else {
+          const newBooking = {
+            id: Date.now().toString(),
+            ...bookingData
+          };
+          await addToGoogleSheets('bookings', newBooking);
+          state.bookings.push(newBooking);
+          showCustomAlert('예약이 등록되었습니다!');
+        }
         
         state.bookingForm = {
           studentName: '',
@@ -440,12 +447,12 @@
           time: '',
           room: state.bookingForm.room
         };
+        state.editingBooking = null;
         state.showBookingForm = false;
         render();
-        showCustomAlert('예약이 등록되었습니다!');
       } catch (error) {
         console.error('에러:', error);
-        showCustomAlert('예약 등록 실패!');
+        showCustomAlert('예약 처리 실패!');
       } finally {
         state.syncing = false;
         render();
@@ -634,29 +641,26 @@
    function getAvailableConsultTimes() {
     if (!state.bookingForm.date || !state.bookingForm.room) return [];
   
-    // 1) 해당 날짜·방 슬롯
     const slots = (state.availableSlots || []).filter(
       s => (s.date || '').trim().startsWith(state.bookingForm.date) &&
            (s.room || '').trim() === (state.bookingForm.room || '').trim()
     );
     if (slots.length === 0) return [];
   
-    // 2) 초등 판정 + 레벨테스트 분
     const g = String(state.bookingForm.grade || '').trim();
     const isElementary = g.startsWith('elementary') || g === 'elementary' ||
                          ['초','초1','초2','초3','초4','초5','초6'].some(k => g.includes(k));
-    const CONSULT_DURATION = 30;           // 상담 30분
+    const CONSULT_DURATION = 30;
     const levelTestMins = state.bookingForm.hasLevelTest ? (isElementary ? 40 : 50) : 0;
   
-    // 3) 동일 날짜·방의 예약(취소 제외) → 분 단위 구간으로 정규화
     const normalizedBookings = (state.bookings || [])
-      .filter(b =>
-        (b.date || '').trim().startsWith(state.bookingForm.date) &&
-        (b.room || '').trim() === (state.bookingForm.room || '').trim() &&
-        (b.status || 'scheduled') !== 'cancelled'
-      )
+      .filter(b => {
+        if (state.editingBooking && b.id === state.editingBooking) return false;
+        return (b.date || '').trim().startsWith(state.bookingForm.date) &&
+               (b.room || '').trim() === (state.bookingForm.room || '').trim() &&
+               (b.status || 'scheduled') !== 'cancelled';
+      })
       .map(b => {
-        // booking.time: 대개 레벨테스트 시작(혹은 startTime), consultTime: 상담 시작
         const timeStr = (b.time || '').trim();
         const endStr = (b.endTime || '').trim();
         const startM = timeToMins(timeStr);
@@ -665,7 +669,6 @@
       })
       .filter(x => Number.isFinite(x.startM) && Number.isFinite(x.endM) && x.endM > x.startM);
   
-    // 4) 슬롯 내에서 5분 단위 후보 시간을 생성하며 충돌 검사
     const availableTimes = new Set();
     const step = 5;
   
@@ -674,40 +677,31 @@
       const slotEndM   = timeToMins(slot.endTime);
       if (!Number.isFinite(slotStartM) || !Number.isFinite(slotEndM) || slotEndM <= slotStartM) continue;
   
-      for (let consultStartM = slotStartM;
-           consultStartM <= slotEndM - CONSULT_DURATION;
-           consultStartM += step) {
-  
+      for (let levelTestStartM = slotStartM - levelTestMins;
+           levelTestStartM <= slotEndM - levelTestMins - CONSULT_DURATION;
+           levelTestStartM += step) {
 
-        const levelStartM = consultStartM - levelTestMins;
+        const consultStartM = levelTestStartM + levelTestMins;
         const consultEndM = consultStartM + CONSULT_DURATION;
-  
-        // 상담 종료 시간만 슬롯 내에 있으면 됨 (레벨테스트는 슬롯 시작 전에 시작 가능)
+
         if (consultStartM < slotStartM || consultEndM > slotEndM) continue;
-  
-        // 충돌 검사 (하나라도 겹치면 제외)
-        const newStart = levelTestMins > 0 ? levelStartM : consultStartM;
-        const newEnd   = consultEndM;
-  
+
+        const newStart = levelTestStartM;
+        const newEnd = consultEndM;
+
         let conflict = false;
         for (const r of normalizedBookings) {
-          // [newStart, newEnd) 와 [r.startM, r.endM) 겹치면 충돌
           if (!(newEnd <= r.startM || newStart >= r.endM)) {
             conflict = true;
             break;
           }
         }
         if (!conflict) {
-          availableTimes.add(minsToTime(consultStartM));
+          availableTimes.add(minsToTime(levelTestStartM));
         }
       }
     }
-  
-    // 디버그: 전부 막힐 때 원인 파악용
-    // if (availableTimes.size === 0) {
-    //   console.warn('No times:', { slots, normalizedBookings, levelTestMins });
-    // }
-  
+
     return Array.from(availableTimes).sort();
   }
 
@@ -740,7 +734,6 @@
         html += '<p class="mt-4 text-gray-600">데이터를 불러오는 중...</p>';
         html += '</div>';
       } else {
-        // 오늘의 상담 예약
         html += '<div class="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 shadow-lg">';
         html += '<h2 class="text-2xl font-bold text-gray-800 mb-4">🔔 오늘의 상담 예약 (' + today + ')</h2>';
         
@@ -753,7 +746,6 @@
                                booking.status === 'cancelled' ? 'bg-red-100 border-red-400' : 
                                'bg-white border-blue-400';
             const statusText = booking.status === 'completed' ? '✓ 완료' : booking.status === 'cancelled' ? '✗ 미진행' : '⏳ 예정';
-            const gradeLabel = gradeLabels[booking?.grade] || '모름'
             
             html += '<div class="' + statusColor + ' border-2 p-4 rounded-xl flex justify-between items-center shadow-md">';
             html += '<div class="flex-1">';
@@ -788,7 +780,6 @@
         }
         html += '</div>';
 
-        // 캘린더 영역
         html += '<div class="mb-8">';
         html += '<div class="flex justify-between items-center mb-4">';
         html += '<h2 class="text-2xl font-bold text-gray-800">📅 캘린더</h2>';
@@ -815,14 +806,12 @@
         html += renderCalendar();
         html += '</div></div>';
 
-        // 선택된 날짜 상세 정보
         if (state.selectedDate) {
           const isPastDate = state.selectedDate < today;
           html += '<div class="p-6 bg-white rounded-xl shadow-lg border border-gray-200 space-y-8">';
           html += '<div class="flex justify-between items-center"><h2 class="text-2xl font-bold text-gray-800">' + state.selectedDate + ' 상세 정보</h2>';
           html += '<button onclick="state.selectedDate = null; render();" class="text-gray-500 hover:text-gray-800 text-sm">X 닫기</button></div>';
 
-          // 1. 상담 가능 시간
           html += '<div><div class="flex justify-between items-center mb-3">';
           html += '<h3 class="font-semibold text-xl text-gray-800">🗓️ 상담 가능 시간</h3>';
           if (!isPastDate) {
@@ -845,11 +834,10 @@
           }
           html += '</div></div>';
 
-          // 2. 예약 현황
           html += '<div><div class="flex justify-between items-center mb-3">';
           html += '<h3 class="font-semibold text-xl text-gray-800">👥 예약 현황</h3>';
           if (!isPastDate && selectedSlots.length > 0) {
-            html += '<button onclick="state.bookingForm.date = \'' + state.selectedDate + '\'; state.showBookingForm = true; render();" class="bg-blue-600 text-white px-3 py-1 rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-md transition">+ 신규 예약</button>';
+            html += '<button onclick="openBookingForm()" class="bg-blue-600 text-white px-3 py-1 rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-md transition">+ 신규 예약</button>';
           }
           html += '</div><div class="space-y-3">';
           
@@ -887,6 +875,7 @@
 
               html += '<div class="flex flex-col gap-1 ml-4">';
               if (booking.status === 'scheduled') {
+                html += '<button onclick="openBookingForm(\'' + booking.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-blue-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-600 disabled:opacity-50 shadow-sm">✏️ 수정</button>';
                 html += '<button onclick="updateBookingStatus(\'' + booking.id + '\', \'completed\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-600 disabled:opacity-50 shadow-sm">✓ 완료</button>';
                 html += '<button onclick="openReasonModal(\'' + booking.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-orange-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-orange-600 disabled:opacity-50 shadow-sm">✗ 미진행</button>';
               }
@@ -901,9 +890,6 @@
       
       html += '</div>';
 
-      // --- Modals ---
-      
-      // 1. 상담 가능 시간 추가 폼 모달 (Slot Form)
       if (state.showSlotForm) {
         const timeOptions = generateTimeOptions(state.slotForm.date);
         
@@ -913,11 +899,9 @@
         
         html += '<div class="space-y-4">';
         
-        // Date
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">날짜</label>';
         html += '<input type="date" value="' + state.slotForm.date + '" onchange="state.slotForm.date = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required></div>';
 
-        // Weekend info
         if (state.slotForm.date) {
           const isWeekendDate = isWeekend(state.slotForm.date);
           html += '<div class="text-sm p-3 rounded-lg ' + (isWeekendDate ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700') + '">';
@@ -925,11 +909,9 @@
           html += '</div>';
         }
 
-        // Room
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
         html += '<input type="text" value="' + state.slotForm.room + '" oninput="state.slotForm.room = this.value;" placeholder="예: 1관, 2관, 본관" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required></div>';
 
-        // Start Time
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">시작 시간 (24시간 표기)</label>';
         html += '<select onchange="state.slotForm.startTime = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
         html += '<option value="">선택</option>';
@@ -938,7 +920,6 @@
         });
         html += '</select></div>';
 
-        // End Time
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">종료 시간 (24시간 표기)</label>';
         html += '<select onchange="state.slotForm.endTime = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
         html += '<option value="">선택</option>';
@@ -956,22 +937,19 @@
         html += '</div></div>';
       }
 
-      // 2. 상담 예약 폼 모달 (Booking Form)
       if (state.showBookingForm) {
         const availableConsultTimes = getAvailableConsultTimes();
         const availableRoomsForBookingDate = [...new Set(state.availableSlots.filter(s => s.date === state.bookingForm.date).map(s => s.room))].sort();
         
-        html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showBookingForm = false; render(); }">';
+        html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showBookingForm = false; state.editingBooking = null; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 transform transition-all scale-100">';
-        html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">➕ 상담 예약 등록 (' + state.bookingForm.date + ')</h3>';
+        html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">' + (state.editingBooking ? '✏️ 상담 예약 수정' : '➕ 상담 예약 등록') + ' (' + state.bookingForm.date + ')</h3>';
         
         html += '<div class="space-y-4">';
 
-        // Student Name
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">학생 이름</label>';
         html += '<input type="text" value="' + state.bookingForm.studentName + '" oninput="state.bookingForm.studentName = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required placeholder="학생 이름"></div>';
         
-        // School & Grade
         html += '<div class="flex gap-4">';
         html += '<div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">학교</label>';
         html += '<input type="text" value="' + state.bookingForm.school + '" oninput="state.bookingForm.school = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="학교명 (모를 경우 \'모름\')"></div>';
@@ -983,7 +961,6 @@
         });
         html += '</select></div></div>';
         
-        // Level Test Checkbox
         html += '<div class="flex items-center"><input id="hasLevelTest" type="checkbox" ' + (state.bookingForm.hasLevelTest ? 'checked' : '') + ' onchange="state.bookingForm.hasLevelTest = this.checked; state.bookingForm.time = \'\'; render();" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">';
         html += '<label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">레벨테스트 병행 (초등 40분, 중/고등 50분 추가)</label></div>';
         
@@ -991,7 +968,6 @@
           html += '<div class="text-sm text-red-600 p-3 bg-red-50 rounded-lg border border-red-200">⚠️ 학년을 모르는 경우 레벨테스트 시간을 정확히 계산할 수 없습니다. 학년을 선택하거나 레벨테스트 옵션을 해제해주세요.</div>';
         }
         
-        // Room
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
         html += '<select onchange="state.bookingForm.room = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
         html += '<option value="">선택</option>';
@@ -1000,13 +976,13 @@
         });
         html += '</select></div>';
         
-        // Time Slot
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담 시작 시간 (30분 소요)</label>';
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">' + (state.bookingForm.hasLevelTest ? '레벨테스트 시작 시간' : '상담 시작 시간') + ' (30분 소요)</label>';
         if (state.bookingForm.room && availableConsultTimes.length > 0) {
           html += '<select onchange="state.bookingForm.time = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
           html += '<option value="">시간 선택</option>';
           availableConsultTimes.forEach(time => {
-            html += '<option value="' + time + '" ' + (state.bookingForm.time === time ? 'selected' : '') + '>' + time + ' (상담 시작)</option>';
+            const label = state.bookingForm.hasLevelTest ? time + ' (레테 시작)' : time + ' (상담 시작)';
+            html += '<option value="' + time + '" ' + (state.bookingForm.time === time ? 'selected' : '') + '>' + label + '</option>';
           });
           html += '</select>';
         } else if (!state.bookingForm.room) {
@@ -1015,34 +991,38 @@
           html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/상담실에 예약 가능한 시간이 없습니다.</p>';
         }
         html += '</div>';
-        if (state.bookingForm.hasLevelTest && state.bookingForm.time) {
+        
+        if (state.bookingForm.time) {
           const g = String(state.bookingForm.grade || '').trim();
           const isElementary = g.startsWith('elementary') || g === 'elementary' ||
                                ['초','초1','초2','초3','초4','초5','초6'].some(k => g.includes(k));
-          const levelTestMins = isElementary ? 40 : 50;  // ✅ 모든 초등 학년 체크
-          const testStartTime = addMinutesToTime(state.bookingForm.time, -levelTestMins);
-          const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
-          html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
-          html += '레벨테스트 시간: ' + testStartTime + ' - ' + state.bookingForm.time + '<br>';
-          html += '총 예약 시간: ' + testStartTime + ' - ' + consultEndTime + ' (' + (levelTestMins + 30) + '분)';
-          html += '</div>';
-        } else if (state.bookingForm.time) {
-          const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
-          html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
-          html += '총 예약 시간: ' + state.bookingForm.time + ' - ' + consultEndTime + ' (30분)';
-          html += '</div>';
+          const levelTestMins = state.bookingForm.hasLevelTest ? (isElementary ? 40 : 50) : 0;
+          
+          if (state.bookingForm.hasLevelTest) {
+            const consultStartTime = addMinutesToTime(state.bookingForm.time, levelTestMins);
+            const consultEndTime = addMinutesToTime(consultStartTime, 30);
+            html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
+            html += '레벨테스트 시간: ' + state.bookingForm.time + ' - ' + consultStartTime + '<br>';
+            html += '상담 시간: ' + consultStartTime + ' - ' + consultEndTime + '<br>';
+            html += '<strong>총 예약 시간: ' + state.bookingForm.time + ' - ' + consultEndTime + ' (' + (levelTestMins + 30) + '분)</strong>';
+            html += '</div>';
+          } else {
+            const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
+            html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
+            html += '총 예약 시간: ' + state.bookingForm.time + ' - ' + consultEndTime + ' (30분)';
+            html += '</div>';
+          }
         }
         
         html += '</div>';
 
         html += '<div class="flex justify-end gap-3 mt-8">';
-        html += '<button onclick="state.showBookingForm = false; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
-        html += '<button onclick="addBooking()" ' + (state.syncing ? 'disabled' : '') + ' class="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50 shadow-md">예약 등록</button>';
+        html += '<button onclick="state.showBookingForm = false; state.editingBooking = null; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
+        html += '<button onclick="addBooking()" ' + (state.syncing ? 'disabled' : '') + ' class="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50 shadow-md">' + (state.editingBooking ? '수정 완료' : '예약 등록') + '</button>';
         html += '</div>';
         html += '</div></div>';
       }
 
-      // 3. 미진행 사유 모달 (Reason Modal)
       if (state.showReasonModal) {
         const reasonOptions = [
           { value: '입력 오류', label: '잘못 입력된 예약' },
@@ -1053,7 +1033,7 @@
         
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showReasonModal = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">';
-        html += '<h3 class="text-xl font-bold text-gray-800 mb-4">❌ 미진행 사유 선택</h3>';
+        html += '<h3 class="text-xl font-bold text-gray-800 mb-4">⌫ 미진행 사유 선택</h3>';
         
         html += '<div class="space-y-4">';
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">사유 유형</label>';
@@ -1066,7 +1046,7 @@
         
         if (state.cancelReasonType === '기타') {
           html += '<div><label class="block text-sm font-medium text-gray-700 mb-2">상세 사유</label>';
-          html += '<textarea oninput="state.cancelReason = this.value;" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder=미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
+          html += '<textarea oninput="state.cancelReason = this.value;" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500" placeholder="미진행 사유를 입력해주세요." required>' + state.cancelReason + '</textarea></div>';
         }
         html += '</div>';
 
@@ -1078,8 +1058,6 @@
         html += '</div></div>';
       }
 
-
-      // 4. 지난 내역 모달 (History Modal)
       if (state.showHistoryModal) {
         const historyBookings = state.bookings.filter(b => b.status !== 'scheduled').sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
 
@@ -1143,53 +1121,11 @@
     }
 
     window.onload = async function () {
-      await loadFromGoogleSheets();                  // 1) 데이터 다 받아온 다음
+      await loadFromGoogleSheets();
       const today = formatDate(new Date());
-      handleDateClick(today, false);                 // 2) 오늘 날짜를 선택해서 렌더 강제
+      handleDateClick(today, false);
     };
 
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
