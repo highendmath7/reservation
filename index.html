@@ -344,18 +344,21 @@
     function openBookingForm(bookingId = null) {
       if (bookingId) {
         const booking = state.bookings.find(b => b.id === bookingId);
-        if (!booking) return;
+        if (!booking) {
+          console.error('Booking not found:', bookingId);
+          return;
+        }
         state.editingBooking = bookingId;
         state.bookingForm = {
-          studentName: booking.studentName,
-          school: booking.school,
-          grade: booking.grade,
-          hasLevelTest: booking.hasLevelTest,
-          date: booking.date,
-          time: booking.consultTime || booking.time,
+          studentName: booking.studentName || '',
+          school: booking.school || '',
+          grade: booking.grade || 'elementary1',
+          hasLevelTest: booking.hasLevelTest || false,
+          date: booking.date || '',
+          time: booking.consultTime || booking.time || '',
           room: booking.consultRoom || booking.room || '',
           consultMode: booking.consultMode || 'in_person',
-          testRoom: booking.testRoom || booking.room || ''
+          testRoom: booking.testRoom || ''
         };
       } else {
         state.editingBooking = null;
@@ -364,7 +367,7 @@
           school: '',
           grade: 'elementary1',
           hasLevelTest: false,
-          date: state.selectedDate,
+          date: state.selectedDate || formatDate(new Date()),
           time: '',
           room: '',
           consultMode: 'in_person',
