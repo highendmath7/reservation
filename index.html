@@ -343,12 +343,20 @@
 
     function openBookingForm(bookingId = null) {
       if (bookingId) {
-        const booking = state.bookings.find(b => b.id === bookingId);
+        console.log('Looking for booking ID:', bookingId, 'Type:', typeof bookingId);
+        console.log('Available bookings:', state.bookings.map(b => ({ id: b.id, type: typeof b.id })));
+        
+        // ID를 문자열로 변환하여 비교
+        const booking = state.bookings.find(b => String(b.id) === String(bookingId));
         if (!booking) {
           console.error('Booking not found:', bookingId);
+          console.log('All booking IDs:', state.bookings.map(b => b.id));
+          showCustomAlert('예약 정보를 찾을 수 없습니다.');
           return;
         }
-        state.editingBooking = bookingId;
+        
+        console.log('Found booking:', booking);
+        state.editingBooking = String(bookingId);
         state.bookingForm = {
           studentName: booking.studentName || '',
           school: booking.school || '',
@@ -528,7 +536,12 @@
         };
 
         if (state.editingBooking) {
-          const existing = state.bookings.find(b=>b.id===state.editingBooking);
+          const existing = state.bookings.find(b => String(b.id) === String(state.editingBooking));
+          if (!existing) {
+            showCustomAlert('수정할 예약을 찾을 수 없습니다.');
+            state.syncing = false;
+            return;
+          }
           await updateInGoogleSheets('bookings', state.editingBooking, { ...existing, ...bookingData });
           showCustomAlert('예약이 수정되었습니다!');
         } else {
