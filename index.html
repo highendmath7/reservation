@@ -97,7 +97,6 @@
       unknown: '모름'
     };
 
-    // 운영시간 설정
     const centerHours = {
       '2관': { weekday: ['15:00','22:00'], weekend: ['10:00','21:00'] },
       '5관': { weekday: ['15:00','22:00'], weekend: ['10:00','21:00'] }
@@ -192,7 +191,7 @@
       const normalizeSlot = (s) => ({
         ...s,
         date: toISODateStr((s?.date ?? '').toString().trim()),
-        id: s?.id ?? '',
+        id: String(s?.id ?? ''),
         room: (s?.room || '').replace('5관테스트실', '5관')
       });
     
@@ -200,7 +199,7 @@
         const rawGrade = (b?.grade ?? '').toString().trim();
         return {
           ...b,
-          id: b?.id ?? '',
+          id: String(b?.id ?? ''),
           date: toISODateStr((b?.date ?? '').toString().trim()),
           time: b?.time ?? b?.startTime ?? '',
           endTime: b?.endTime ?? '',
@@ -567,7 +566,7 @@
       render();
       
       try {
-        const booking = state.bookings.find(b => b.id === id);
+        const booking = state.bookings.find(b => String(b.id) === String(id));
         if (!booking) return;
         
         const updatedBooking = {
@@ -1208,3 +1207,4 @@
   </script>
 </body>
 </html>
+
