@@ -328,7 +328,6 @@
           room: state.slotForm.room
         };
         await addToGoogleSheets('slots', newSlot);
-        state.availableSlots.push(newSlot);
         
         state.slotForm = { date: '', startTime: '', endTime: '', room: '' };
         state.showSlotForm = false;
@@ -528,13 +527,10 @@
         if (state.editingBooking) {
           const existing = state.bookings.find(b=>b.id===state.editingBooking);
           await updateInGoogleSheets('bookings', state.editingBooking, { ...existing, ...bookingData });
-          const idx = state.bookings.findIndex(b=>b.id===state.editingBooking);
-          state.bookings[idx] = { ...existing, ...bookingData };
           showCustomAlert('예약이 수정되었습니다!');
         } else {
           const newBooking = { id: Date.now().toString(), ...bookingData };
           await addToGoogleSheets('bookings', newBooking);
-          state.bookings.push(newBooking);
           showCustomAlert('예약이 등록되었습니다!');
         }
 
@@ -566,9 +562,6 @@
         };
         
         await updateInGoogleSheets('bookings', id, updatedBooking);
-        
-        const index = state.bookings.findIndex(b => b.id === id);
-        state.bookings[index] = updatedBooking;
         
         showCustomAlert(status === 'completed' ? '완료 처리되었습니다!' : '미진행 처리되었습니다!');
       } catch (error) {
@@ -612,7 +605,6 @@
         
         try {
           await deleteFromGoogleSheets('slots', id);
-          state.availableSlots = state.availableSlots.filter(s => s.id !== id);
           showCustomAlert('삭제되었습니다!');
         } catch (error) {
           showCustomAlert('삭제 실패!');
@@ -630,7 +622,6 @@
         
         try {
           await deleteFromGoogleSheets('bookings', id);
-          state.bookings = state.bookings.filter(b => b.id !== id);
           showCustomAlert('삭제되었습니다!');
         } catch (error) {
           showCustomAlert('삭제 실패!');
