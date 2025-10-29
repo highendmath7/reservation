@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -50,7 +49,7 @@
     }
 
     let state = {
-      editingBooking: [],
+      editingBooking: null,
       availableSlots: [],
       bookings: [],
       showSlotForm: false,
@@ -69,13 +68,13 @@
       bookingForm: {
           studentName: '',
           school: '',
-          grade: 'elementary',
+          grade: 'elementary1',
           hasLevelTest: false,
           date: '',
           time: '',
           room: '',
-          consultMode: 'in_person',   // ✅ 'in_person' | 'phone'
-          testRoom: ''   
+          consultMode: 'in_person',
+          testRoom: ''
       }
     };
 
@@ -98,6 +97,12 @@
       unknown: '모름'
     };
 
+    // 운영시간 설정
+    const centerHours = {
+      '2관': { weekday: ['15:00','22:00'], weekend: ['10:00','21:00'] },
+      '5관': { weekday: ['15:00','22:00'], weekend: ['10:00','21:00'] }
+    };
+
     function formatDate(date) {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -111,120 +116,138 @@
       return formatDate(date);
     }
 
-   async function loadFromGoogleSheets() {
-    state.loading = true;
-    console.log('GET url:', `${GOOGLE_SCRIPT_URL}?sheet=bookings`);
-    console.log('bookings len after fetch:', state.bookings?.length, state.bookings?.slice(0,2));
-    render();
-  
-    // 안전 헬퍼들
-    const oneMonthAgo = getOneMonthAgo();                // 'YYYY-MM-DD' 가정
-    const toArray = (x) => Array.isArray(x)
-      ? x
-      : (Array.isArray(x?.bookings) ? x.bookings
-      : (Array.isArray(x?.data) ? x.data : []));
-    // 날짜 문자열을 어떤 형식이 와도 YYYY-MM-DD로 표준화
-    function toISODateStr(s) {
-      if (!s) return '';
-      // 이미 YYYY-MM-DD면
-      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-    
-      // 2025. 10. 27 / 2025.10.27 / 2025/10/27
-      let m = s.match(/^\s*(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
-      if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
-    
-      // 10/27/2025 같은 M/D/YYYY
-      m = s.match(/^\s*(\d{1,2})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{4})/);
-      if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
-    
-      const d = new Date(s);
-      if (!isNaN(d)) {
-        const y = d.getFullYear();
-        const m2 = String(d.getMonth()+1).padStart(2,'0');
-        const dd = String(d.getDate()).padStart(2,'0');
-        return `${y}-${m2}-${dd}`;
-      }
-      return '';
+    function isWeekend(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      const day = d.getDay();
+      return day === 0 || day === 6;
     }
-    
-    // 교체 전: const isRecent = (d) => typeof d === 'string' && d >= oneMonthAgo;
-    // 교체 후:
-    const isRecent = (d) => {
-      const iso = toISODateStr(d);
-      return iso && iso >= oneMonthAgo;
-    };
 
-  
-    // 레거시/혼합 스키마 방어용 정규화
-    const normalizeSlot = (s) => ({
-      ...s,
-      date: toISODateStr((s?.date ?? '').toString().trim()),
-      id: s?.id ?? '',
-    });
-  
-    const normalizeBooking = (b) => {
-      const rawGrade = (b?.grade ?? '').toString().trim();
-      return {
-        ...b,
-        id: b?.id ?? '',
-        date: toISODateStr((b?.date ?? '').toString().trim()),
-        // 시트가 startTime를 쓰는 케이스 방어
-        time: b?.time ?? b?.startTime ?? '',
-        endTime: b?.endTime ?? '',
-        room: b?.room ?? '',
-        consultTime: b?.consultTime ?? '',
-  
-        // 상태 기본값
-        status: b?.status ?? 'scheduled',
-        cancelReason: b?.cancelReason ?? '',
-        completedAt: b?.completedAt ?? '',
-  
-        // grade 혼재 방어 (초등/중등/고등/세분화/한글 라벨)
-        grade: rawGrade,
-        _isElementary:
-          rawGrade.startsWith('elementary') ||
-          rawGrade === 'elementary' ||
-          ['초','초1','초2','초3','초4','초5','초6'].some(k => rawGrade.includes(k)),
-      };
-    };
-  
-    try {
-      // --- slots ---
-      const slotsResponse = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=slots&ts=${Date.now()}`, {cache: 'no-store'});
-      const slotsRaw = await slotsResponse.json();
-      const slotsArr = toArray(slotsRaw).map(normalizeSlot);
-      state.availableSlots = slotsArr.filter(s => s.id && isRecent(s.date));
-  
-      // --- bookings ---
-      const bookingsResponse = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=bookings&ts=${Date.now()}`, {cache: 'no-store'});
-      const bookingsRaw = await bookingsResponse.json();
-      const bookingsArr = toArray(bookingsRaw).map(normalizeBooking);
-      state.bookings = bookingsArr.filter(b => b.id && isRecent(b.date));
-  
-      // (선택) 정렬: 날짜→시간→방
-      state.bookings.sort((a, b) => (a.date + a.time + a.room).localeCompare(b.date + b.time + b.room));
-  
-      // 오래된 데이터 정리 (실패해도 앱은 계속 동작)
-      try { await cleanupOldData(oneMonthAgo); } catch (e) { console.warn('cleanupOldData failed:', e); }
-    } catch (err) {
-      console.error('loadFromGoogleSheets error:', err);
-      // 실패 시에도 배열 보장
-      state.availableSlots = state.availableSlots || [];
-      state.bookings = state.bookings || [];
-    } finally {
-      state.loading = false;
-      // 안전망: 아직 선택된 날짜가 없다면 오늘로 설정
-      if (!state.selectedDate) {
-        state.selectedDate = formatDate(new Date());
-      }
-      render();
+    function getOpenWindow(dateStr, hallPrefix) {
+      const cfg = centerHours[hallPrefix];
+      if (!cfg) return null;
+      const key = isWeekend(dateStr) ? 'weekend' : 'weekday';
+      const v = cfg[key];
+      if (!v || v.length !== 2) return null;
+      return [v[0], v[1]];
     }
-  }
+
+    function timeToMins(time) {
+      if (time == null) return NaN;
+      if (time instanceof Date) return time.getHours() * 60 + time.getMinutes();
+      const s = String(time);
+      const m = s.match(/(\d{1,2}):(\d{2})(?!.*\d)/);
+      if (!m) return NaN;
+      const h = parseInt(m[1], 10), mm = parseInt(m[2], 10);
+      if (!Number.isFinite(h) || !Number.isFinite(mm)) return NaN;
+      return h * 60 + mm;
+    }
+
+    function minsToTime(mins) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+
+    function addMinutesToTime(time, minutes) {
+      return minsToTime(timeToMins(time) + minutes);
+    }
+
+    const norm = v => String(v||'').replace(/\s+/g,'').trim();
+
+    async function loadFromGoogleSheets() {
+      state.loading = true;
+      render();
+    
+      const oneMonthAgo = getOneMonthAgo();
+      const toArray = (x) => Array.isArray(x)
+        ? x
+        : (Array.isArray(x?.bookings) ? x.bookings
+        : (Array.isArray(x?.data) ? x.data : []));
+      
+      function toISODateStr(s) {
+        if (!s) return '';
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+      
+        let m = s.match(/^\s*(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
+        if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+      
+        m = s.match(/^\s*(\d{1,2})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{4})/);
+        if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+      
+        const d = new Date(s);
+        if (!isNaN(d)) {
+          const y = d.getFullYear();
+          const m2 = String(d.getMonth()+1).padStart(2,'0');
+          const dd = String(d.getDate()).padStart(2,'0');
+          return `${y}-${m2}-${dd}`;
+        }
+        return '';
+      }
+      
+      const isRecent = (d) => {
+        const iso = toISODateStr(d);
+        return iso && iso >= oneMonthAgo;
+      };
+    
+      const normalizeSlot = (s) => ({
+        ...s,
+        date: toISODateStr((s?.date ?? '').toString().trim()),
+        id: s?.id ?? '',
+        room: (s?.room || '').replace('5관테스트실', '5관')
+      });
+    
+      const normalizeBooking = (b) => {
+        const rawGrade = (b?.grade ?? '').toString().trim();
+        return {
+          ...b,
+          id: b?.id ?? '',
+          date: toISODateStr((b?.date ?? '').toString().trim()),
+          time: b?.time ?? b?.startTime ?? '',
+          endTime: b?.endTime ?? '',
+          room: (b?.room || '').replace('5관테스트실', '5관'),
+          consultTime: b?.consultTime ?? '',
+          status: b?.status ?? 'scheduled',
+          cancelReason: b?.cancelReason ?? '',
+          completedAt: b?.completedAt ?? '',
+          grade: rawGrade,
+          _isElementary:
+            rawGrade.startsWith('elementary') ||
+            rawGrade === 'elementary' ||
+            ['초','초1','초2','초3','초4','초5','초6'].some(k => rawGrade.includes(k)),
+        };
+      };
+    
+      try {
+        const slotsResponse = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=slots&ts=${Date.now()}`, {cache: 'no-store'});
+        const slotsRaw = await slotsResponse.json();
+        const slotsArr = toArray(slotsRaw).map(normalizeSlot);
+        state.availableSlots = slotsArr.filter(s => s.id && isRecent(s.date));
+    
+        const bookingsResponse = await fetch(`${GOOGLE_SCRIPT_URL}?sheet=bookings&ts=${Date.now()}`, {cache: 'no-store'});
+        const bookingsRaw = await bookingsResponse.json();
+        const bookingsArr = toArray(bookingsRaw).map(normalizeBooking);
+        state.bookings = bookingsArr.filter(b => b.id && isRecent(b.date));
+    
+        state.bookings.sort((a, b) => (a.date + a.time + a.room).localeCompare(b.date + b.time + b.room));
+    
+        try { await cleanupOldData(oneMonthAgo); } catch (e) { console.warn('cleanupOldData failed:', e); }
+      } catch (err) {
+        console.error('loadFromGoogleSheets error:', err);
+        state.availableSlots = state.availableSlots || [];
+        state.bookings = state.bookings || [];
+      } finally {
+        state.loading = false;
+        if (!state.selectedDate) {
+          state.selectedDate = formatDate(new Date());
+        }
+        render();
+      }
+    }
 
     async function cleanupOldData(cutoffDate) {
       try {
-        const oldSlots     = (state.availableSlots || []).filter(slot => slot.date < cutoffDate && slot.id);
-        const oldBookings  = (state.bookings || []).filter(booking => booking.date < cutoffDate && booking.id);
+        const oldSlots = (state.availableSlots || []).filter(slot => slot.date < cutoffDate && slot.id);
+        const oldBookings = (state.bookings || []).filter(booking => booking.date < cutoffDate && booking.id);
         
         for (let slot of oldSlots) {
           await deleteFromGoogleSheets('slots', slot.id);
@@ -248,8 +271,8 @@
       formData.append('action', 'add');
       formData.append('data', JSON.stringify(data));
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
-      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
-      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
+      await loadFromGoogleSheets();
+      handleDateClick(state.selectedDate, false);
     }
 
     async function updateInGoogleSheets(sheet, id, data) {
@@ -259,8 +282,8 @@
       formData.append('id', id);
       formData.append('data', JSON.stringify(data));
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
-      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
-      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
+      await loadFromGoogleSheets();
+      handleDateClick(state.selectedDate, false);
     }
 
     async function deleteFromGoogleSheets(sheet, id) {
@@ -269,30 +292,8 @@
       formData.append('action', 'delete');
       formData.append('id', id);
       await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
-      await loadFromGoogleSheets(); // ← 전체 페이지 새로고침 없이 데이터만 다시 로드
-      handleDateClick(state.selectedDate, false); // ← 같은 날짜 다시 렌더
-    }
-
-    function timeToMins(time) {
-      if (!time) return 0;
-      const [h, m] = time.split(':').map(Number);
-      return h * 60 + m;
-    }
-
-    function minsToTime(mins) {
-      const h = Math.floor(mins / 60);
-      const m = mins % 60;
-      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-    }
-
-    function addMinutesToTime(time, minutes) {
-      return minsToTime(timeToMins(time) + minutes);
-    }
-
-    function isWeekend(dateStr) {
-      const date = new Date(dateStr);
-      const day = date.getDay();
-      return day === 0 || day === 6;
+      await loadFromGoogleSheets();
+      handleDateClick(state.selectedDate, false);
     }
 
     function openSlotForm(date) {
@@ -340,6 +341,7 @@
         render();
       }
     }
+
     function openBookingForm(bookingId = null) {
       if (bookingId) {
         const booking = state.bookings.find(b => b.id === bookingId);
@@ -353,8 +355,8 @@
           date: booking.date,
           time: booking.consultTime || booking.time,
           room: booking.consultRoom || booking.room || '',
-          consultMode: booking.consultMode || 'in_person',   // ✅
-          testRoom: booking.testRoom || booking.room || ''   // ✅
+          consultMode: booking.consultMode || 'in_person',
+          testRoom: booking.testRoom || booking.room || ''
         };
       } else {
         state.editingBooking = null;
@@ -366,47 +368,146 @@
           date: state.selectedDate,
           time: '',
           room: '',
-          consultMode: 'in_person', // ✅
-          testRoom: ''              // ✅
+          consultMode: 'in_person',
+          testRoom: ''
         };
       }
       state.showBookingForm = true;
       render();
     }
 
+    function getAvailableTimes() {
+      if (!state.bookingForm.date) return [];
+      const dateStr = state.bookingForm.date;
+      const step = 5;
+      const CONSULT_DURATION = 30;
+
+      const g = String(state.bookingForm.grade||'').trim();
+      const isElementary = g.startsWith('elementary') || g==='elementary' ||
+        ['초','초1','초2','초3','초4','초5','초6'].some(k=>g.includes(k));
+      const levelTestMins = state.bookingForm.hasLevelTest ? (isElementary?40:50) : 0;
+
+      const isPhone = (state.bookingForm.consultMode === 'phone');
+      const isTestOnly = (isPhone && state.bookingForm.hasLevelTest);
+
+      const slotsAll = (state.availableSlots||[]).filter(s => (s.date||'')===dateStr);
+      
+      const bookings = (state.bookings||[])
+        .filter(r => (r.date||'')===dateStr)
+        .map(r => ({
+          room: norm(r.room),
+          startM: timeToMins(r.time),
+          endM: timeToMins(r.endTime)
+        }));
+
+      const out = new Set();
+
+      if (isTestOnly) {
+        const chosen = norm(state.bookingForm.testRoom);
+        if (!chosen) return [];
+
+        const win = getOpenWindow(dateStr, chosen);
+        if (!win) return [];
+
+        const sM = timeToMins(win[0]);
+        const eM = timeToMins(win[1]);
+        const required = levelTestMins + CONSULT_DURATION;
+
+        for (let tStart = sM; tStart <= eM - required; tStart += step) {
+          const tEnd = tStart + required;
+          let conflict = false;
+          for (const r of bookings) {
+            if (r.room.startsWith(chosen)) {
+              if (!(tEnd <= r.startM || tStart >= r.endM)) {
+                conflict = true;
+                break;
+              }
+            }
+          }
+          if (!conflict) out.add(minsToTime(tStart));
+        }
+        return Array.from(out).sort();
+      }
+
+      const consultSlots = isPhone
+        ? slotsAll.filter(s => /^(2|5)관/.test(norm(s.room)))
+        : slotsAll.filter(s => norm(s.room)===norm(state.bookingForm.room));
+
+      for (const slot of consultSlots) {
+        const sM = timeToMins(slot.startTime);
+        const eM = timeToMins(slot.endTime);
+        if (!Number.isFinite(sM)||!Number.isFinite(eM)||eM<=sM) continue;
+
+        for (let tStart = sM; tStart <= eM - CONSULT_DURATION; tStart += step) {
+          const tEnd = tStart + CONSULT_DURATION;
+          let conflict = false;
+          for (const r of bookings) {
+            if (isPhone) {
+              if (r.room === norm(slot.room)) {
+                if (!(tEnd <= r.startM || tStart >= r.endM)) {
+                  conflict = true;
+                  break;
+                }
+              }
+            } else {
+              if (r.room === norm(state.bookingForm.room)) {
+                if (!(tEnd <= r.startM || tStart >= r.endM)) {
+                  conflict = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (!conflict) out.add(minsToTime(tStart));
+        }
+      }
+      return Array.from(out).sort();
+    }
 
     async function addBooking() {
       const f = state.bookingForm;
-    
-      // 필수값
-      if (!f.studentName || !f.date || !f.time) return showCustomAlert('모든 필드를 입력해주세요.');
-      if (f.consultMode === 'in_person' && !f.room) return showCustomAlert('상담실을 선택해주세요.');
-      if (f.hasLevelTest && !f.testRoom) return showCustomAlert('레벨테스트 장소를 선택해주세요.');
-    
-      // 학년-레벨테스트 경고
+      const isPhone = (f.consultMode === 'phone');
+      const isTestOnly = (isPhone && f.hasLevelTest);
+
+      if (!f.studentName || !f.date || !f.time) {
+        return showCustomAlert('모든 필드를 입력해주세요.');
+      }
+      if (!isPhone && !f.room) {
+        return showCustomAlert('상담실을 선택해주세요.');
+      }
+      if (isTestOnly && !f.testRoom) {
+        return showCustomAlert('레벨테스트 장소(2관/5관)를 선택해주세요.');
+      }
       if (f.hasLevelTest && f.grade === 'unknown') {
         return showCustomAlert('학년을 모르는 경우 레벨테스트 시간을 정확히 계산할 수 없습니다.');
       }
-    
-      // 시간 계산
+
       const g = String(f.grade||'').trim();
       const isElementary = g.startsWith('elementary') || g === 'elementary' ||
         ['초','초1','초2','초3','초4','초5','초6'].some(k=>g.includes(k));
       const levelTestMins = f.hasLevelTest ? (isElementary ? 40 : 50) : 0;
-    
-      const consultTime = f.time;
-      const consultEndTime = addMinutesToTime(consultTime, 30);
-      const startTime = levelTestMins > 0 ? addMinutesToTime(consultTime, -levelTestMins) : consultTime;
-      const endTime = consultEndTime;
-    
-      // 슬롯/충돌 검증은 getAvailableConsultTimes()와 동일 가정
-      const candidates = getAvailableConsultTimes();
-      if (!candidates.includes(consultTime)) {
+
+      let consultTime, startTime, endTime;
+
+      if (isTestOnly) {
+        startTime = f.time;
+        consultTime = addMinutesToTime(f.time, levelTestMins);
+        endTime = addMinutesToTime(consultTime, 30);
+      } else {
+        consultTime = f.time;
+        const consultEndTime = addMinutesToTime(consultTime, 30);
+        startTime = levelTestMins > 0 ? addMinutesToTime(consultTime, -levelTestMins) : consultTime;
+        endTime = consultEndTime;
+      }
+
+      const candidates = getAvailableTimes();
+      if (!candidates.includes(f.time)) {
         return showCustomAlert('선택한 시간은 예약 규칙(상담/테스트 슬롯, 충돌)과 맞지 않습니다.');
       }
-    
-      state.syncing = true; render();
-    
+
+      state.syncing = true;
+      render();
+
       try {
         const bookingData = {
           studentName: f.studentName,
@@ -414,16 +515,16 @@
           grade: f.grade,
           hasLevelTest: f.hasLevelTest,
           date: f.date,
-          time: startTime,             // 전체 예약 시작(테스트 시작 또는 상담 시작)
-          endTime: endTime,            // 전체 예약 종료(상담 종료)
-          consultTime: consultTime,    // 상담 시작
+          time: startTime,
+          endTime: endTime,
+          consultTime: consultTime,
           status: 'scheduled',
-          consultMode: f.consultMode,  // ✅
-          testRoom: f.hasLevelTest ? f.testRoom : '',         // ✅
-          consultRoom: f.consultMode==='in_person' ? f.room : '전화상담', // ✅
-          room: f.hasLevelTest ? (f.testRoom || f.room || '') : (f.consultMode==='in_person' ? f.room : '전화상담') // 기존 표시용 호환
+          consultMode: f.consultMode,
+          testRoom: f.hasLevelTest ? f.testRoom : '',
+          consultRoom: f.consultMode==='in_person' ? f.room : '전화상담',
+          room: f.hasLevelTest ? (f.testRoom || f.room || '') : (f.consultMode==='in_person' ? f.room : '전화상담')
         };
-    
+
         if (state.editingBooking) {
           const existing = state.bookings.find(b=>b.id===state.editingBooking);
           await updateInGoogleSheets('bookings', state.editingBooking, { ...existing, ...bookingData });
@@ -436,7 +537,7 @@
           state.bookings.push(newBooking);
           showCustomAlert('예약이 등록되었습니다!');
         }
-    
+
         state.showBookingForm = false;
         state.editingBooking = null;
         render();
@@ -444,42 +545,44 @@
         console.error(e);
         showCustomAlert('예약 처리 실패!');
       } finally {
-        state.syncing = false; render();
+        state.syncing = false;
+        render();
       }
     }
-        async function updateBookingStatus(id, status, reason = '') {
-          state.syncing = true;
-          render();
-          
-          try {
-            const booking = state.bookings.find(b => b.id === id);
-            if (!booking) return;
-            
-            const updatedBooking = {
-              ...booking,
-              status: status,
-              cancelReason: reason || '',
-              completedAt: status === 'completed' ? new Date().toISOString() : booking.completedAt
-            };
-            
-            await updateInGoogleSheets('bookings', id, updatedBooking);
-            
-            const index = state.bookings.findIndex(b => b.id === id);
-            state.bookings[index] = updatedBooking;
-            
-            showCustomAlert(status === 'completed' ? '완료 처리되었습니다!' : '미진행 처리되었습니다!');
-          } catch (error) {
-            console.error('에러:', error);
-            showCustomAlert('상태 변경 실패!');
-          } finally {
-            state.syncing = false;
-            state.showReasonModal = false;
-            state.selectedBookingId = null;
-            state.cancelReason = '';
-            state.cancelReasonType = '';
-            render();
-          }
-        }
+
+    async function updateBookingStatus(id, status, reason = '') {
+      state.syncing = true;
+      render();
+      
+      try {
+        const booking = state.bookings.find(b => b.id === id);
+        if (!booking) return;
+        
+        const updatedBooking = {
+          ...booking,
+          status: status,
+          cancelReason: reason || '',
+          completedAt: status === 'completed' ? new Date().toISOString() : booking.completedAt
+        };
+        
+        await updateInGoogleSheets('bookings', id, updatedBooking);
+        
+        const index = state.bookings.findIndex(b => b.id === id);
+        state.bookings[index] = updatedBooking;
+        
+        showCustomAlert(status === 'completed' ? '완료 처리되었습니다!' : '미진행 처리되었습니다!');
+      } catch (error) {
+        console.error('에러:', error);
+        showCustomAlert('상태 변경 실패!');
+      } finally {
+        state.syncing = false;
+        state.showReasonModal = false;
+        state.selectedBookingId = null;
+        state.cancelReason = '';
+        state.cancelReasonType = '';
+        render();
+      }
+    }
 
     function openReasonModal(id) {
       state.selectedBookingId = id;
@@ -625,101 +728,6 @@
       }
       return options;
     }
-    
-   function getAvailableConsultTimes() {
-    if (!state.bookingForm.date) return [];
-  
-    const dateStr = state.bookingForm.date;
-    const CONSULT_DURATION = 30;
-  
-    const g = String(state.bookingForm.grade || '').trim();
-    const isElementary = g.startsWith('elementary') || g === 'elementary' ||
-                         ['초','초1','초2','초3','초4','초5','초6'].some(k => g.includes(k));
-    const levelTestMins = state.bookingForm.hasLevelTest ? (isElementary ? 40 : 50) : 0;
-  
-    const slotsAll = (state.availableSlots||[]).filter(s=> (s.date||'')===dateStr);
-    if (slotsAll.length===0) return [];
-  
-    // 상담 구간에 쓸 슬롯들
-    const consultSlots = (state.bookingForm.consultMode === 'in_person')
-      ? slotsAll.filter(s => (s.room||'') === (state.bookingForm.room||''))
-      : slotsAll; // 전화상담이면 모든 관의 슬롯 합집합
-  
-    if (consultSlots.length===0) return [];
-  
-    // 테스트 구간에 쓸 슬롯(선택적)
-    const testSlots = state.bookingForm.hasLevelTest
-      ? slotsAll.filter(s => (s.room||'') === (state.bookingForm.testRoom||''))
-      : [];
-  
-    // 기존 예약들(취소 제외)
-    const bookings = (state.bookings||[])
-      .filter(b => (b.date||'').startsWith(dateStr) && (b.status||'scheduled')!=='cancelled')
-      .map(b => {
-        return {
-          room: b.room||'',
-          startM: timeToMins(b.time),
-          endM: timeToMins(b.endTime),
-          consultStartM: timeToMins(b.consultTime||b.time),
-          consultMode: b.consultMode || 'in_person'
-        };
-      })
-      .filter(x => Number.isFinite(x.startM) && Number.isFinite(x.endM) && x.endM > x.startM);
-  
-    const step = 5;
-    const out = new Set();
-  
-    // 상담 슬롯(한 슬롯씩 순회)
-    for (const slot of consultSlots) {
-      const slotStartM = timeToMins(slot.startTime||slot.time);
-      const slotEndM   = timeToMins(slot.endTime);
-      if (!Number.isFinite(slotStartM) || !Number.isFinite(slotEndM) || slotEndM<=slotStartM) continue;
-  
-      for (let consultStartM = slotStartM; consultStartM <= slotEndM - CONSULT_DURATION; consultStartM += step) {
-        const consultEndM = consultStartM + CONSULT_DURATION;
-        const testStartM = consultStartM - levelTestMins;
-  
-        // 상담 구간은 '어떤 관이든' 슬롯 안이어야 함(전화상담 포함)
-        const consultInsideSomeSlot = slotsAll.some(s => {
-          const sS = timeToMins(s.startTime||s.time);
-          const sE = timeToMins(s.endTime);
-          return consultStartM >= sS && consultEndM <= sE;
-        });
-        if (!consultInsideSomeSlot) continue;
-  
-        // 레벨테스트가 있으면, 테스트 구간은 testRoom 슬롯 안이어야 함
-        if (levelTestMins > 0) {
-          const testInsideTestRoom = testSlots.some(s => {
-            const sS = timeToMins(s.startTime||s.time);
-            const sE = timeToMins(s.endTime);
-            return testStartM >= sS && consultStartM <= sE; // [testStart, consultStart] ⊆ slot
-          });
-          if (!testInsideTestRoom) continue;
-        }
-  
-        // 충돌 검사
-        let conflict = false;
-        for (const r of bookings) {
-          // 1) 테스트 구간 충돌: 같은 testRoom에서만 체크
-          if (levelTestMins > 0 && r.room === (state.bookingForm.testRoom||'')) {
-            if (!(consultStartM <= r.startM || testStartM >= r.endM)) { conflict = true; break; }
-          }
-          // 2) 상담 구간 충돌: 전화상담은 '방 불문'으로 충돌, 대면은 같은 room만
-          const consultOverlap = !(consultEndM <= r.startM || consultStartM >= r.endM);
-          if (consultOverlap) {
-            if (state.bookingForm.consultMode === 'phone') { conflict = true; break; }
-            if (state.bookingForm.consultMode === 'in_person' && r.room === (state.bookingForm.room||'')) {
-              conflict = true; break;
-            }
-          }
-        }
-  
-        if (!conflict) out.add(minsToTime(consultStartM));
-      }
-    }
-    return Array.from(out).sort();
-  }
-
 
     function render() {
       const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
@@ -750,7 +758,6 @@
         html += '<p class="mt-4 text-gray-600">데이터를 불러오는 중...</p>';
         html += '</div>';
       } else {
-        // 오늘의 상담 예약
         html += '<div class="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 shadow-lg">';
         html += '<h2 class="text-2xl font-bold text-gray-800 mb-4">🔔 오늘의 상담 예약 (' + today + ')</h2>';
         
@@ -763,7 +770,6 @@
                                booking.status === 'cancelled' ? 'bg-red-100 border-red-400' : 
                                'bg-white border-blue-400';
             const statusText = booking.status === 'completed' ? '✓ 완료' : booking.status === 'cancelled' ? '✗ 미진행' : '⏳ 예정';
-            const gradeLabel = gradeLabels[booking?.grade] || '모름'
             
             html += '<div class="' + statusColor + ' border-2 p-4 rounded-xl flex justify-between items-center shadow-md">';
             html += '<div class="flex-1">';
@@ -798,7 +804,6 @@
         }
         html += '</div>';
 
-        // 캘린더 영역
         html += '<div class="mb-8">';
         html += '<div class="flex justify-between items-center mb-4">';
         html += '<h2 class="text-2xl font-bold text-gray-800">📅 캘린더</h2>';
@@ -825,14 +830,12 @@
         html += renderCalendar();
         html += '</div></div>';
 
-        // 선택된 날짜 상세 정보
         if (state.selectedDate) {
           const isPastDate = state.selectedDate < today;
           html += '<div class="p-6 bg-white rounded-xl shadow-lg border border-gray-200 space-y-8">';
           html += '<div class="flex justify-between items-center"><h2 class="text-2xl font-bold text-gray-800">' + state.selectedDate + ' 상세 정보</h2>';
           html += '<button onclick="state.selectedDate = null; render();" class="text-gray-500 hover:text-gray-800 text-sm">X 닫기</button></div>';
 
-          // 1. 상담 가능 시간
           html += '<div><div class="flex justify-between items-center mb-3">';
           html += '<h3 class="font-semibold text-xl text-gray-800">🗓️ 상담 가능 시간</h3>';
           if (!isPastDate) {
@@ -855,7 +858,6 @@
           }
           html += '</div></div>';
 
-          // 2. 예약 현황
           html += '<div><div class="flex justify-between items-center mb-3">';
           html += '<h3 class="font-semibold text-xl text-gray-800">👥 예약 현황</h3>';
           if (!isPastDate && selectedSlots.length > 0) {
@@ -912,9 +914,6 @@
       
       html += '</div>';
 
-      // --- Modals ---
-      
-      // 1. 상담 가능 시간 추가 폼 모달 (Slot Form)
       if (state.showSlotForm) {
         const timeOptions = generateTimeOptions(state.slotForm.date);
         
@@ -924,65 +923,24 @@
         
         html += '<div class="space-y-4">';
         
-        // Date
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">날짜</label>';
         html += '<input type="date" value="' + state.slotForm.date + '" onchange="state.slotForm.date = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required></div>';
 
-        // Weekend info
         if (state.slotForm.date) {
           const isWeekendDate = isWeekend(state.slotForm.date);
           html += '<div class="text-sm p-3 rounded-lg ' + (isWeekendDate ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700') + '">';
-          html += isWeekendDate ? '📅 주말: 10:00~22:00 사이 선택 가능' : '📅 주중: 15:00~22:00 사이 선택 가능';
+          html += isWeekendDate ? '📅 주말: 10:00~21:00 사이 선택 가능' : '📅 주중: 15:00~22:00 사이 선택 가능';
           html += '</div>';
         }
 
-        // Room
-        // 상담 방식
-        html += `
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">상담 방식</label>
-            <select onchange="state.bookingForm.consultMode=this.value; state.bookingForm.time=''; render();" 
-                    class="w-full p-3 border rounded-lg">
-              <option value="in_person" ${state.bookingForm.consultMode==='in_person'?'selected':''}>대면(상담실 필요)</option>
-              <option value="phone" ${state.bookingForm.consultMode==='phone'?'selected':''}>전화상담(장소 무관)</option>
-            </select>
-          </div>
-        `;
-        
-        // 오늘 날짜의 사용 가능한 방 목록
-        const roomsForDate = [...new Set(
-          (state.availableSlots||[])
-            .filter(s => (s.date||'') === (state.bookingForm.date||''))
-            .map(s => s.room)
-        )].sort();
-        
-        // 상담실 / 테스트실
-        if (state.bookingForm.consultMode === 'in_person') {
-          // 대면일 때만 상담실 선택 활성화
-          html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
-          html += '<select onchange="state.bookingForm.room=this.value; state.bookingForm.time=\'\'; render();" class="w-full p-3 border rounded-lg" required>';
-          html += '<option value="">선택</option>';
-          roomsForDate.forEach(r=>{
-            html += `<option value="${r}" ${state.bookingForm.room===r?'selected':''}>${r}</option>`;
-          });
-          html += '</select></div>';
-        } else {
-          // 전화상담: 상담실 선택 숨기고 안내
-          html += '<div class="text-sm text-indigo-700 p-3 bg-indigo-50 rounded-lg">전화상담은 상담실 선택이 필요 없습니다.</div>';
-        }
-        
-        // 레벨테스트 장소(레벨테스트가 체크된 경우만)
-        if (state.bookingForm.hasLevelTest) {
-          html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">레벨테스트 장소</label>';
-          html += '<select onchange="state.bookingForm.testRoom=this.value; state.bookingForm.time=\'\'; render();" class="w-full p-3 border rounded-lg" required>';
-          html += '<option value="">선택</option>';
-          roomsForDate.forEach(r=>{
-            html += `<option value="${r}" ${state.bookingForm.testRoom===r?'selected':''}>${r}</option>`;
-          });
-          html += '</select></div>';
-        }
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
+        html += '<select onchange="state.slotForm.room = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
+        html += '<option value="">선택</option>';
+        allRooms.forEach(room => {
+          html += '<option value="' + room + '" ' + (state.slotForm.room === room ? 'selected' : '') + '>' + room + '</option>';
+        });
+        html += '</select></div>';
 
-        // Start Time
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">시작 시간 (24시간 표기)</label>';
         html += '<select onchange="state.slotForm.startTime = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
         html += '<option value="">선택</option>';
@@ -991,7 +949,6 @@
         });
         html += '</select></div>';
 
-        // End Time
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">종료 시간 (24시간 표기)</label>';
         html += '<select onchange="state.slotForm.endTime = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
         html += '<option value="">선택</option>';
@@ -1009,108 +966,135 @@
         html += '</div></div>';
       }
 
-      // 2. 상담 예약 폼 모달 (Booking Form)
       if (state.showBookingForm) {
-        const availableConsultTimes = getAvailableConsultTimes();
-        const availableRoomsForBookingDate = [...new Set(state.availableSlots.filter(s => s.date === state.bookingForm.date).map(s => s.room))].sort();
-        html += '<button onclick="addBooking()" ' + (state.syncing ? 'disabled' : '') + 
-                ' class="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50 shadow-md">' +
-                (state.editingBooking ? '수정 완료' : '예약 등록') + '</button>';
-
+        const availableTimes = getAvailableTimes();
+        const isPhone = (state.bookingForm.consultMode === 'phone');
+        const isTestOnly = (isPhone && state.bookingForm.hasLevelTest);
+        
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showBookingForm = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 transform transition-all scale-100">';
         html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">➕ 상담 예약 등록 (' + state.bookingForm.date + ')</h3>';
         
         html += '<div class="space-y-4">';
 
-        // Student Name
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">학생 이름</label>';
         html += '<input type="text" value="' + state.bookingForm.studentName + '" oninput="state.bookingForm.studentName = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required placeholder="학생 이름"></div>';
         
-        // School & Grade
         html += '<div class="flex gap-4">';
         html += '<div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">학교</label>';
         html += '<input type="text" value="' + state.bookingForm.school + '" oninput="state.bookingForm.school = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="학교명 (모를 경우 \'모름\')"></div>';
 
         html += '<div class="w-1/3"><label class="block text-sm font-medium text-gray-700 mb-1">학년</label>';
-        html += '<select onchange="state.bookingForm.grade = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
+        html += '<select onchange="state.bookingForm.grade=this.value; state.bookingForm.time=\'\'; render();" class="w-full p-3 border rounded-lg" required>';
         ['elementary1','elementary2','elementary3','elementary4','elementary5','elementary6', 'middle1','middle2','middle3','high1','high2','high3','unknown'].forEach(g => {
           html += '<option value="' + g + '" ' + (state.bookingForm.grade === g ? 'selected' : '') + '>' + gradeLabels[g] + '</option>';
         });
         html += '</select></div></div>';
         
-        // Level Test Checkbox
-        html += `
-          <div class="flex items-center">
-            <input
-              id="hasLevelTest"
-              type="checkbox"
-              ${state.bookingForm.hasLevelTest ? 'checked' : ''}
-              onchange="state.bookingForm.hasLevelTest=this.checked; state.bookingForm.testRoom=''; state.bookingForm.time=''; render();"
-              class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            >
-            <label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">
-              레벨테스트 병행 (초등 40분, 중/고등 50분 추가)
-            </label>
-          </div>
-        `;
+        html += '<div class="flex items-center">';
+        html += '<input id="hasLevelTest" type="checkbox" ' + (state.bookingForm.hasLevelTest ? 'checked' : '') + ' onchange="state.bookingForm.hasLevelTest=this.checked; state.bookingForm.time=\'\'; if(state.bookingForm.consultMode===\'phone\'){ state.bookingForm.testRoom=\'\'; } render();" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">';
+        html += '<label for="hasLevelTest" class="ml-2 block text-sm text-gray-900">레벨테스트 병행 (초등 40분, 중/고등 50분 추가)</label>';
+        html += '</div>';
+
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담 방식</label>';
+        html += '<select onchange="state.bookingForm.consultMode=this.value; if(this.value===\'phone\'){ state.bookingForm.room=\'\'; state.bookingForm.testRoom=\'\'; } state.bookingForm.time=\'\'; render();" class="w-full p-3 border rounded-lg">';
+        html += '<option value="in_person" ' + (state.bookingForm.consultMode==='in_person'?'selected':'') + '>대면(상담실 필요)</option>';
+        html += '<option value="phone" ' + (state.bookingForm.consultMode==='phone'?'selected':'') + '>전화상담(장소 무관)</option>';
+        html += '</select></div>';
         
         if (state.bookingForm.hasLevelTest && state.bookingForm.grade === 'unknown') {
           html += '<div class="text-sm text-red-600 p-3 bg-red-50 rounded-lg border border-red-200">⚠️ 학년을 모르는 경우 레벨테스트 시간을 정확히 계산할 수 없습니다. 학년을 선택하거나 레벨테스트 옵션을 해제해주세요.</div>';
         }
+
+        if (isTestOnly) {
+          if (!state.bookingForm.testRoom) {
+            const candidates = ['2관','5관'];
+            html += '<div class="mt-2"><label class="block text-sm font-medium text-gray-700 mb-1">레벨테스트 장소</label>';
+            html += '<select onchange="state.bookingForm.testRoom=this.value; state.bookingForm.time=\'\'; render();" class="w-full p-3 border rounded-lg" required>';
+            html += '<option value="">선택</option>';
+            candidates.forEach(r=>{ html += '<option value="' + r + '">' + r + '</option>'; });
+            html += '</select></div>';
+            html += '<p class="text-sm text-indigo-700 p-3 bg-indigo-50 rounded-lg mt-2">레벨테스트 장소를 먼저 선택하면 시작 가능한 시간이 표시됩니다.</p>';
+          } else {
+            html += '<div class="text-sm text-indigo-700 p-3 bg-indigo-50 rounded-lg">선택된 테스트실: <b>' + state.bookingForm.testRoom + '</b></div>';
+          }
+        } else if (isPhone) {
+          html += '<div class="text-sm text-indigo-700 p-3 bg-indigo-50 rounded-lg">전화상담은 상담실 선택이 필요 없습니다.</div>';
+        } else {
+          const roomsForDate = [...new Set((state.availableSlots||[])
+            .filter(s => (s.date||'') === state.bookingForm.date)
+            .map(s => String(s.room||'').trim()))].sort();
+          html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
+          html += '<select onchange="state.bookingForm.room=this.value; state.bookingForm.time=\'\'; render();" class="w-full p-3 border rounded-lg" required>';
+          html += '<option value="">선택</option>';
+          roomsForDate.forEach(r=>{
+            html += '<option value="' + r + '" ' + (String(state.bookingForm.room||'').trim()===r?'selected':'') + '>' + r + '</option>';
+          });
+          html += '</select></div>';
+        }
+
+        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">' + (isTestOnly ? '레벨테스트 시작 시간' : '상담 시작 시간 (30분 소요)') + '</label>';
         
-        // Room
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
-        html += '<select onchange="state.bookingForm.room = this.value; state.bookingForm.time = \'\'; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
-        html += '<option value="">선택</option>';
-        availableRoomsForBookingDate.forEach(room => {
-          html += '<option value="' + room + '" ' + (state.bookingForm.room === room ? 'selected' : '') + '>' + room + '</option>';
-        });
-        html += '</select></div>';
-        
-        // Time Slot
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담 시작 시간 (30분 소요)</label>';
-        if (state.bookingForm.room && availableConsultTimes.length > 0) {
-          html += '<select onchange="state.bookingForm.time = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>';
+        const needRoom = (!isPhone && !isTestOnly && !state.bookingForm.room);
+        const needTestRoom = (isTestOnly && !state.bookingForm.testRoom);
+
+        if (needTestRoom) {
+          html += '<p class="text-sm text-indigo-700 p-3 bg-indigo-50 rounded-lg">레벨테스트 장소(2관/5관)를 먼저 선택해주세요.</p>';
+        } else if (availableTimes.length > 0) {
+          html += '<select onchange="state.bookingForm.time=this.value; render();" class="w-full p-3 border rounded-lg" required>';
           html += '<option value="">시간 선택</option>';
-          availableConsultTimes.forEach(time => {
-            html += '<option value="' + time + '" ' + (state.bookingForm.time === time ? 'selected' : '') + '>' + time + ' (상담 시작)</option>';
+          availableTimes.forEach(time => {
+            html += '<option value="' + time + '" ' + (state.bookingForm.time === time ? 'selected' : '') + '>' + time + ' (' + (isTestOnly?'레벨테스트 시작':'상담 시작') + ')</option>';
           });
           html += '</select>';
-        } else if (!state.bookingForm.room) {
-          html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">상담실을 먼저 선택해주세요.</p>';
         } else {
-          html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 날짜/상담실에 예약 가능한 시간이 없습니다.</p>';
+          if (needRoom) {
+            html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">상담실을 먼저 선택해주세요.</p>';
+          } else {
+            html += '<p class="text-sm text-red-500 p-3 bg-red-50 rounded-lg">선택된 조건에 예약 가능한 시간이 없습니다.</p>';
+          }
         }
         html += '</div>';
-        if (state.bookingForm.hasLevelTest && state.bookingForm.time) {
+
+        if (state.bookingForm.time) {
           const g = String(state.bookingForm.grade || '').trim();
-          const isElementary = g.startsWith('elementary') || g === 'elementary' ||
-                               ['초','초1','초2','초3','초4','초5','초6'].some(k => g.includes(k));
-          const levelTestMins = isElementary ? 40 : 50;  // ✅ 모든 초등 학년 체크
-          const testStartTime = addMinutesToTime(state.bookingForm.time, -levelTestMins);
-          const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
-          html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
-          html += '레벨테스트 시간: ' + testStartTime + ' - ' + state.bookingForm.time + '<br>';
-          html += '총 예약 시간: ' + testStartTime + ' - ' + consultEndTime + ' (' + (levelTestMins + 30) + '분)';
-          html += '</div>';
-        } else if (state.bookingForm.time) {
-          const consultEndTime = addMinutesToTime(state.bookingForm.time, 30);
-          html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
-          html += '총 예약 시간: ' + state.bookingForm.time + ' - ' + consultEndTime + ' (30분)';
-          html += '</div>';
+          const isElem = g.startsWith('elementary') || g === 'elementary' || ['초','초1','초2','초3','초4','초5','초6'].some(k => g.includes(k));
+          
+          if (isTestOnly) {
+            const L = isElem ? 40 : 50;
+            const consultStart = addMinutesToTime(state.bookingForm.time, L);
+            const consultEnd = addMinutesToTime(consultStart, 30);
+            html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
+            html += '레벨테스트: ' + state.bookingForm.time + ' - ' + consultStart + ' (' + L + '분)<br>';
+            html += '전화상담: ' + consultStart + ' - ' + consultEnd + ' (30분)<br>';
+            html += '총 예약 시간: ' + state.bookingForm.time + ' - ' + consultEnd + ' (' + (L + 30) + '분)';
+            html += '</div>';
+          } else if (state.bookingForm.hasLevelTest) {
+            const levelTestMins = isElem ? 40 : 50;
+            const testStart = addMinutesToTime(state.bookingForm.time, -levelTestMins);
+            const consultEnd = addMinutesToTime(state.bookingForm.time, 30);
+            html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
+            html += '레벨테스트: ' + testStart + ' - ' + state.bookingForm.time + ' (' + levelTestMins + '분)<br>';
+            html += '상담: ' + state.bookingForm.time + ' - ' + consultEnd + ' (30분)<br>';
+            html += '총 예약 시간: ' + testStart + ' - ' + consultEnd + ' (' + (levelTestMins + 30) + '분)';
+            html += '</div>';
+          } else {
+            const consultEnd = addMinutesToTime(state.bookingForm.time, 30);
+            html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
+            html += '총 예약 시간: ' + state.bookingForm.time + ' - ' + consultEnd + ' (30분' + (isPhone?' · 전화상담':'') + ')';
+            html += '</div>';
+          }
         }
         
         html += '</div>';
 
         html += '<div class="flex justify-end gap-3 mt-8">';
-        html += '<button onclick="state.showBookingForm = false; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
-        html += '<button onclick="addBooking()" ' + (state.syncing ? 'disabled' : '') + ' class="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50 shadow-md">예약 등록</button>';
+        html += '<button type="button" onclick="state.showBookingForm=false; render();" class="px-4 py-2 rounded-lg border">취소</button>';
+        html += '<button type="button" onclick="addBooking()" class="px-4 py-2 rounded-lg bg-indigo-600 text-white shadow">' + (state.editingBooking ? '수정' : '등록') + '</button>';
         html += '</div>';
         html += '</div></div>';
       }
 
-      // 3. 미진행 사유 모달 (Reason Modal)
       if (state.showReasonModal) {
         const reasonOptions = [
           { value: '입력 오류', label: '잘못 입력된 예약' },
@@ -1138,7 +1122,6 @@
         }
         html += '</div>';
 
-
         html += '<div class="flex justify-end gap-3 mt-6">';
         html += '<button onclick="state.showReasonModal = false; state.selectedBookingId = null; state.cancelReason = \'\'; state.cancelReasonType = \'\'; render();" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>';
         const isDisabled = !state.cancelReasonType || (state.cancelReasonType === '기타' && !state.cancelReason.trim());
@@ -1147,8 +1130,6 @@
         html += '</div></div>';
       }
 
-
-      // 4. 지난 내역 모달 (History Modal)
       if (state.showHistoryModal) {
         const historyBookings = state.bookings.filter(b => b.status !== 'scheduled').sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
 
@@ -1212,29 +1193,11 @@
     }
 
     window.onload = async function () {
-      await loadFromGoogleSheets();                  // 1) 데이터 다 받아온 다음
+      await loadFromGoogleSheets();
       const today = formatDate(new Date());
-      handleDateClick(today, false);                 // 2) 오늘 날짜를 선택해서 렌더 강제
+      handleDateClick(today, false);
     };
 
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
