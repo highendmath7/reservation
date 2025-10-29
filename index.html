@@ -97,10 +97,20 @@
       unknown: '모름'
     };
 
+    // 운영시간 설정
     const centerHours = {
       '2관': { weekday: ['15:00','22:00'], weekend: ['10:00','21:00'] },
       '5관': { weekday: ['15:00','22:00'], weekend: ['10:00','21:00'] }
     };
+
+    // 고정 일정 설정
+    const fixedSchedule = [
+      { day: 1, room: '2관', slots: [['16:30','18:00'], ['19:00','20:30']] }, // 월요일
+      { day: 3, room: '2관', slots: [['16:30','18:00'], ['19:00','20:30']] }, // 수요일
+      { day: 4, room: '5관', slots: [['16:00','22:00']] }, // 목요일
+      { day: 5, room: '2관', slots: [['16:30','18:00'], ['19:00','20:30']] }, // 금요일
+      { day: 6, room: '2관', slots: [['11:00','17:00']] }  // 토요일
+    ];
 
     function formatDate(date) {
       const year = date.getFullYear();
@@ -191,7 +201,7 @@
       const normalizeSlot = (s) => ({
         ...s,
         date: toISODateStr((s?.date ?? '').toString().trim()),
-        id: String(s?.id ?? ''),
+        id: s?.id ?? '',
         room: (s?.room || '').replace('5관테스트실', '5관')
       });
     
@@ -199,7 +209,7 @@
         const rawGrade = (b?.grade ?? '').toString().trim();
         return {
           ...b,
-          id: String(b?.id ?? ''),
+          id: b?.id ?? '',
           date: toISODateStr((b?.date ?? '').toString().trim()),
           time: b?.time ?? b?.startTime ?? '',
           endTime: b?.endTime ?? '',
@@ -295,7 +305,73 @@
       handleDateClick(state.selectedDate, false);
     }
 
-    function openSlotForm(date) {
+    async function applyFixedScheduleForMonth() {
+      const year = state.currentDate.getFullYear();
+      const month = state.currentDate.getMonth();
+      const today = formatDate(new Date());
+      
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const newSlots = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateStr = formatDate(date);
+        const dayOfWeek = date.getDay(); // 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토
+        
+        // 오늘 이전 날짜는 건너뛰기
+        if (dateStr < today) continue;
+        
+        // 해당 요일의 고정 일정 찾기
+        const schedule = fixedSchedule.find(s => s.day === dayOfWeek);
+        if (!schedule) continue;
+        
+        // 이미 해당 날짜에 같은 방의 슬롯이 있는지 확인
+        const existingSlots = state.availableSlots.filter(s => 
+          s.date === dateStr && s.room === schedule.room
+        );
+        
+        // 각 시간대별로 슬롯 생성
+        for (const [startTime, endTime] of schedule.slots) {
+          // 중복 체크: 같은 시간대가 이미 있으면 건너뛰기
+          const isDuplicate = existingSlots.some(s => 
+            s.startTime === startTime && s.endTime === endTime
+          );
+          
+          if (!isDuplicate) {
+            newSlots.push({
+              id: Date.now().toString() + '_' + day + '_' + startTime.replace(':', ''),
+              date: dateStr,
+              startTime: startTime,
+              endTime: endTime,
+              room: schedule.room
+            });
+          }
+        }
+      }
+      
+      if (newSlots.length === 0) {
+        showCustomAlert('이미 모든 고정 일정이 등록되어 있습니다.');
+        return;
+      }
+      
+      showCustomConfirm(`${newSlots.length}개의 상담 가능 시간을 추가하시겠습니까?`, async () => {
+        state.syncing = true;
+        render();
+        
+        try {
+          for (const slot of newSlots) {
+            await addToGoogleSheets('slots', slot);
+          }
+          showCustomAlert(`${newSlots.length}개의 고정 일정이 추가되었습니다!`);
+        } catch (error) {
+          console.error('고정 일정 추가 실패:', error);
+          showCustomAlert('일정 추가 중 오류가 발생했습니다.');
+        } finally {
+          state.syncing = false;
+          render();
+        }
+      });
+    }
       const allRooms = [...new Set(state.availableSlots.map(s => s.room))].sort();
       const availableRoomsForDate = [...new Set(state.availableSlots.filter(s => s.date === date).map(s => s.room))].sort();
       state.slotForm.date = date;
@@ -566,7 +642,7 @@
       render();
       
       try {
-        const booking = state.bookings.find(b => String(b.id) === String(id));
+        const booking = state.bookings.find(b => b.id === id);
         if (!booking) return;
         
         const updatedBooking = {
@@ -814,6 +890,7 @@
         html += '<div class="flex justify-between items-center mb-4">';
         html += '<h2 class="text-2xl font-bold text-gray-800">📅 캘린더</h2>';
         html += '<div class="flex items-center gap-4">';
+        html += '<button onclick="applyFixedScheduleForMonth()" ' + (state.syncing ? 'disabled' : '') + ' class="bg-purple-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700 transition shadow-md disabled:opacity-50">⚡ 고정 일정 적용</button>';
         html += '<button onclick="prevMonth()" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition">◀</button>';
         html += '<span class="text-xl font-bold text-indigo-700">' + state.currentDate.getFullYear() + '년 ' + monthNames[state.currentDate.getMonth()] + '</span>';
         html += '<button onclick="nextMonth()" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition">▶</button>';
@@ -1207,4 +1284,3 @@
   </script>
 </body>
 </html>
-
