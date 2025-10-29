@@ -967,16 +967,16 @@
         
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showBookingForm = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 transform transition-all scale-100">';
-        html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">➕ 상담 예약 등록 (' + state.bookingForm.date + ')</h3>';
+        html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">' + (state.editingBooking ? '✏️ 상담 예약 수정' : '➕ 상담 예약 등록') + ' (' + state.bookingForm.date + ')</h3>';
         
         html += '<div class="space-y-4">';
 
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">학생 이름</label>';
-        html += '<input type="text" value="' + state.bookingForm.studentName + '" oninput="state.bookingForm.studentName = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required placeholder="학생 이름"></div>';
+        html += '<input type="text" value="' + (state.bookingForm.studentName || '') + '" oninput="state.bookingForm.studentName = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required placeholder="학생 이름"></div>';
         
         html += '<div class="flex gap-4">';
         html += '<div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">학교</label>';
-        html += '<input type="text" value="' + state.bookingForm.school + '" oninput="state.bookingForm.school = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="학교명 (모를 경우 \'모름\')"></div>';
+        html += '<input type="text" value="' + (state.bookingForm.school || '') + '" oninput="state.bookingForm.school = this.value;" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="학교명 (모를 경우 \'모름\')"></div>';
 
         html += '<div class="w-1/3"><label class="block text-sm font-medium text-gray-700 mb-1">학년</label>';
         html += '<select onchange="state.bookingForm.grade=this.value; state.bookingForm.time=\'\'; render();" class="w-full p-3 border rounded-lg" required>';
