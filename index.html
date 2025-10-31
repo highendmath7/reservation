@@ -51,9 +51,9 @@ async function applyFixedSchedule() {
         return;
       }
       
-      const message = skippedCount > 0 
-        ? `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n월: 2관 16:30-18:00, 19:00-20:30\n수: 2관 16:30-18:00, 19:00-20:30\n목: 5관 16:00-22:00\n금: 2관 16:30-18:00, 19:00-20:30\n토: 2관 11:00-17:00`
-        : `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하<!DOCTYPE html>
+      const message = `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n📌월: 2관 16:30-18:00, 19:00-20:30\n📌수: 2관 16:30-18:00, 19:00-20:30\n📌목: 5관 16:00-22:00\n📌금: 2관 16:30-18:00, 19:00-20:30\n📌토: 2관 11:00-17:00`;
+      confirm(message);
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -1369,3 +1369,4 @@ async function applyFixedSchedule() {
   </script>
 </body>
 </html>
+
