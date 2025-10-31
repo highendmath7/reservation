@@ -364,6 +364,7 @@
     }
 
     async function applyFixedSchedule() {
+       console.log('applyFixedSchedule 호출됨');  // ← 이거 추가! 함수가 실행되는지 확인용
       const year = state.currentDate.getFullYear();
       const month = state.currentDate.getMonth();
       const firstDay = new Date(year, month, 1);
@@ -378,7 +379,7 @@
         const date = new Date(year, month, day);
         const dateStr = formatDate(date);
         const dayOfWeek = date.getDay();
-        
+        console.log('추가할 슬롯:', slotsToAdd.length, '건너뜀:', skippedCount);  // ← 이것도 추가!
         // 오늘 이전 날짜는 스킵
         if (dateStr < today) continue;
         
@@ -420,7 +421,6 @@
           
       showCustomConfirm(message, async () => {
         state.syncing = true;
-        showCustomAlert('적용중입니다...');
         render();
         
         try {
@@ -1316,6 +1316,7 @@
   </script>
 </body>
 </html>
+
 
 
 
