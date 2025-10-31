@@ -265,62 +265,7 @@
         render();
       }
     }
-    async function applyFixedSchedule() {
-      const year = state.currentDate.getFullYear();
-      const month = state.currentDate.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-      const daysInMonth = lastDay.getDate();
-      
-      const today = formatDate(new Date());
-      const slotsToAdd = [];
-      let skippedCount = 0;
-      
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
-        const dateStr = formatDate(date);
-        const dayOfWeek = date.getDay();
-        
-        // 오늘 이전 날짜는 스킵
-        if (dateStr < today) continue;
-        
-        // 해당 요일의 고정 일정이 있는지 확인
-        const schedules = fixedSchedule[dayOfWeek];
-        if (!schedules) continue;
-        
-        // 이미 슬롯이 있는 날짜인지 확인
-        const existingSlots = state.availableSlots.filter(s => s.date === dateStr);
-        
-        for (const schedule of schedules) {
-          // 같은 방, 같은 시간대의 슬롯이 이미 있는지 확인
-          const isDuplicate = existingSlots.some(s => 
-            s.room === schedule.room && 
-            s.startTime === schedule.startTime && 
-            s.endTime === schedule.endTime
-          );
-          
-          if (isDuplicate) {
-            skippedCount++;
-          } else {
-            slotsToAdd.push({
-              id: `${Date.now()}_${day}_${schedule.room}_${schedule.startTime.replace(':', '')}`,
-              date: dateStr,
-              room: schedule.room,
-              startTime: schedule.startTime,
-              endTime: schedule.endTime
-            });
-          }
-        }
-      }
-      
-      if (slotsToAdd.length === 0) {
-        showCustomAlert(`이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 건너뜀)`);
-        return;
-      }
-      
-      const message = `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n📌월: 2관 16:30-18:00, 19:00-20:30\n📌수: 2관 16:30-18:00, 19:00-20:30\n📌목: 5관 16:00-22:00\n📌금: 2관 16:30-18:00, 19:00-20:30\n📌토: 2관 11:00-17:00`;
-      confirm(message);
-          
+   
     async function cleanupOldData(cutoffDate) {
       try {
         const oldSlots = (state.availableSlots || []).filter(slot => slot.date < cutoffDate && slot.id);
@@ -427,6 +372,7 @@
       
       const today = formatDate(new Date());
       const slotsToAdd = [];
+      let skippedCount = 0;
       
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
@@ -451,9 +397,11 @@
             s.endTime === schedule.endTime
           );
           
-          if (!isDuplicate) {
+          if (isDuplicate) {
+            skippedCount++;
+          } else {
             slotsToAdd.push({
-              id: Date.now().toString() + '_' + day + '_' + schedule.room.replace('관', ''),
+              id: `${Date.now()}_${day}_${schedule.room}_${schedule.startTime.replace(':', '')}`,
               date: dateStr,
               room: schedule.room,
               startTime: schedule.startTime,
@@ -464,13 +412,13 @@
       }
       
       if (slotsToAdd.length === 0) {
-        showCustomAlert('이미 모든 고정 일정이 등록되어 있습니다.');
+        showCustomAlert(`이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 건너뜀)`);
         return;
       }
-      const message = skippedCount > 0 
-        ? `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n월: 2관 16:30-18:00, 19:00-20:30\n수: 2관 16:30-18:00, 19:00-20:30\n목: 5관 16:00-22:00\n금: 2관 16:30-18:00, 19:00-20:30\n토: 2관 11:00-17:00`
-        : `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n\n월: 2관 16:30-18:00, 19:00-20:30\n수: 2관 16:30-18:00, 19:00-20:30\n목: 5관 16:00-22:00\n금: 2관 16:30-18:00, 19:00-20:30\n토: 2관 11:00-17:00`;
       
+      const message = `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n📌월: 2관 16:30-18:00, 19:00-20:30\n📌수: 2관 16:30-18:00, 19:00-20:30\n📌목: 5관 16:00-22:00\n📌금: 2관 16:30-18:00, 19:00-20:30\n📌토: 2관 11:00-17:00`;
+      confirm(message);
+          
       showCustomConfirm(message, async () => {
         state.syncing = true;
         showCustomAlert('적용중입니다...');
@@ -1369,5 +1317,6 @@
   </script>
 </body>
 </html>
+
 
 
