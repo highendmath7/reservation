@@ -103,14 +103,27 @@
       '5관': { weekday: ['15:00','22:00'], weekend: ['10:00','21:00'] }
     };
 
-    // 고정 일정 설정
-    const fixedSchedule = [
-      { day: 1, room: '2관', slots: [['16:30','18:00'], ['19:00','20:30']] }, // 월요일
-      { day: 3, room: '2관', slots: [['16:30','18:00'], ['19:00','20:30']] }, // 수요일
-      { day: 4, room: '5관', slots: [['16:00','22:00']] }, // 목요일
-      { day: 5, room: '2관', slots: [['16:30','18:00'], ['19:00','20:30']] }, // 금요일
-      { day: 6, room: '2관', slots: [['11:00','17:00']] }  // 토요일
-    ];
+    // 고정 일정 템플릿
+    const fixedSchedule = {
+      1: [ // 월요일
+        { room: '2관', startTime: '16:30', endTime: '18:00' },
+        { room: '2관', startTime: '19:00', endTime: '20:30' }
+      ],
+      3: [ // 수요일
+        { room: '2관', startTime: '16:30', endTime: '18:00' },
+        { room: '2관', startTime: '19:00', endTime: '20:30' }
+      ],
+      4: [ // 목요일
+        { room: '5관', startTime: '16:00', endTime: '22:00' }
+      ],
+      5: [ // 금요일
+        { room: '2관', startTime: '16:30', endTime: '18:00' },
+        { room: '2관', startTime: '19:00', endTime: '20:30' }
+      ],
+      6: [ // 토요일
+        { room: '2관', startTime: '11:00', endTime: '17:00' }
+      ]
+    };
 
     function formatDate(date) {
       const year = date.getFullYear();
@@ -305,73 +318,7 @@
       handleDateClick(state.selectedDate, false);
     }
 
-    async function applyFixedScheduleForMonth() {
-      const year = state.currentDate.getFullYear();
-      const month = state.currentDate.getMonth();
-      const today = formatDate(new Date());
-      
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const newSlots = [];
-      
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
-        const dateStr = formatDate(date);
-        const dayOfWeek = date.getDay(); // 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토
-        
-        // 오늘 이전 날짜는 건너뛰기
-        if (dateStr < today) continue;
-        
-        // 해당 요일의 고정 일정 찾기
-        const schedule = fixedSchedule.find(s => s.day === dayOfWeek);
-        if (!schedule) continue;
-        
-        // 이미 해당 날짜에 같은 방의 슬롯이 있는지 확인
-        const existingSlots = state.availableSlots.filter(s => 
-          s.date === dateStr && s.room === schedule.room
-        );
-        
-        // 각 시간대별로 슬롯 생성
-        for (const [startTime, endTime] of schedule.slots) {
-          // 중복 체크: 같은 시간대가 이미 있으면 건너뛰기
-          const isDuplicate = existingSlots.some(s => 
-            s.startTime === startTime && s.endTime === endTime
-          );
-          
-          if (!isDuplicate) {
-            newSlots.push({
-              id: Date.now().toString() + '_' + day + '_' + startTime.replace(':', ''),
-              date: dateStr,
-              startTime: startTime,
-              endTime: endTime,
-              room: schedule.room
-            });
-          }
-        }
-      }
-      
-      if (newSlots.length === 0) {
-        showCustomAlert('이미 모든 고정 일정이 등록되어 있습니다.');
-        return;
-      }
-      
-      showCustomConfirm(`${newSlots.length}개의 상담 가능 시간을 추가하시겠습니까?`, async () => {
-        state.syncing = true;
-        render();
-        
-        try {
-          for (const slot of newSlots) {
-            await addToGoogleSheets('slots', slot);
-          }
-          showCustomAlert(`${newSlots.length}개의 고정 일정이 추가되었습니다!`);
-        } catch (error) {
-          console.error('고정 일정 추가 실패:', error);
-          showCustomAlert('일정 추가 중 오류가 발생했습니다.');
-        } finally {
-          state.syncing = false;
-          render();
-        }
-      });
-    }
+    function openSlotForm(date) {
       const allRooms = [...new Set(state.availableSlots.map(s => s.room))].sort();
       const availableRoomsForDate = [...new Set(state.availableSlots.filter(s => s.date === date).map(s => s.room))].sort();
       state.slotForm.date = date;
@@ -414,6 +361,80 @@
         state.syncing = false;
         render();
       }
+    }
+
+    async function applyFixedSchedule() {
+      const year = state.currentDate.getFullYear();
+      const month = state.currentDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      
+      const today = formatDate(new Date());
+      const slotsToAdd = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateStr = formatDate(date);
+        const dayOfWeek = date.getDay();
+        
+        // 오늘 이전 날짜는 스킵
+        if (dateStr < today) continue;
+        
+        // 해당 요일의 고정 일정이 있는지 확인
+        const schedules = fixedSchedule[dayOfWeek];
+        if (!schedules) continue;
+        
+        // 이미 슬롯이 있는 날짜인지 확인
+        const existingSlots = state.availableSlots.filter(s => s.date === dateStr);
+        
+        for (const schedule of schedules) {
+          // 같은 방, 같은 시간대의 슬롯이 이미 있는지 확인
+          const isDuplicate = existingSlots.some(s => 
+            s.room === schedule.room && 
+            s.startTime === schedule.startTime && 
+            s.endTime === schedule.endTime
+          );
+          
+          if (!isDuplicate) {
+            slotsToAdd.push({
+              id: Date.now().toString() + '_' + day + '_' + schedule.room.replace('관', ''),
+              date: dateStr,
+              room: schedule.room,
+              startTime: schedule.startTime,
+              endTime: schedule.endTime
+            });
+          }
+        }
+      }
+      
+      if (slotsToAdd.length === 0) {
+        showCustomAlert('이미 모든 고정 일정이 등록되어 있습니다.');
+        return;
+      }
+      
+      showCustomConfirm(
+        `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n\n월: 2관 16:30-18:00, 19:00-20:30\n수: 2관 16:30-18:00, 19:00-20:30\n목: 5관 16:00-22:00\n금: 2관 16:30-18:00, 19:00-20:30\n토: 2관 11:00-17:00`,
+        async () => {
+          state.syncing = true;
+          render();
+          
+          try {
+            for (const slot of slotsToAdd) {
+              await addToGoogleSheets('slots', slot);
+              // 약간의 딜레이 추가 (서버 부담 방지)
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            showCustomAlert(`${slotsToAdd.length}개의 고정 일정이 추가되었습니다!`);
+          } catch (error) {
+            console.error('고정 일정 추가 에러:', error);
+            showCustomAlert('일부 일정 추가에 실패했습니다.');
+          } finally {
+            state.syncing = false;
+            render();
+          }
+        }
+      );
     }
 
     function openBookingForm(bookingId = null) {
@@ -890,7 +911,7 @@
         html += '<div class="flex justify-between items-center mb-4">';
         html += '<h2 class="text-2xl font-bold text-gray-800">📅 캘린더</h2>';
         html += '<div class="flex items-center gap-4">';
-        html += '<button onclick="applyFixedScheduleForMonth()" ' + (state.syncing ? 'disabled' : '') + ' class="bg-purple-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700 transition shadow-md disabled:opacity-50">⚡ 고정 일정 적용</button>';
+        html += '<button onclick="applyFixedSchedule()" ' + (state.syncing ? 'disabled' : '') + ' class="bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-purple-600 transition disabled:opacity-50 shadow-md">📌 고정 일정 적용</button>';
         html += '<button onclick="prevMonth()" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition">◀</button>';
         html += '<span class="text-xl font-bold text-indigo-700">' + state.currentDate.getFullYear() + '년 ' + monthNames[state.currentDate.getMonth()] + '</span>';
         html += '<button onclick="nextMonth()" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition">▶</button>';
