@@ -1,4 +1,59 @@
-<!DOCTYPE html>
+async function applyFixedSchedule() {
+      const year = state.currentDate.getFullYear();
+      const month = state.currentDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      
+      const today = formatDate(new Date());
+      const slotsToAdd = [];
+      let skippedCount = 0;
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateStr = formatDate(date);
+        const dayOfWeek = date.getDay();
+        
+        // 오늘 이전 날짜는 스킵
+        if (dateStr < today) continue;
+        
+        // 해당 요일의 고정 일정이 있는지 확인
+        const schedules = fixedSchedule[dayOfWeek];
+        if (!schedules) continue;
+        
+        // 이미 슬롯이 있는 날짜인지 확인
+        const existingSlots = state.availableSlots.filter(s => s.date === dateStr);
+        
+        for (const schedule of schedules) {
+          // 같은 방, 같은 시간대의 슬롯이 이미 있는지 확인
+          const isDuplicate = existingSlots.some(s => 
+            s.room === schedule.room && 
+            s.startTime === schedule.startTime && 
+            s.endTime === schedule.endTime
+          );
+          
+          if (isDuplicate) {
+            skippedCount++;
+          } else {
+            slotsToAdd.push({
+              id: `${Date.now()}_${day}_${schedule.room}_${schedule.startTime.replace(':', '')}`,
+              date: dateStr,
+              room: schedule.room,
+              startTime: schedule.startTime,
+              endTime: schedule.endTime
+            });
+          }
+        }
+      }
+      
+      if (slotsToAdd.length === 0) {
+        showCustomAlert(`이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 건너뜀)`);
+        return;
+      }
+      
+      const message = skippedCount > 0 
+        ? `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n월: 2관 16:30-18:00, 19:00-20:30\n수: 2관 16:30-18:00, 19:00-20:30\n목: 5관 16:00-22:00\n금: 2관 16:30-18:00, 19:00-20:30\n토: 2관 11:00-17:00`
+        : `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -412,29 +467,38 @@
         showCustomAlert('이미 모든 고정 일정이 등록되어 있습니다.');
         return;
       }
+      const message = skippedCount > 0 
+        ? `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n월: 2관 16:30-18:00, 19:00-20:30\n수: 2관 16:30-18:00, 19:00-20:30\n목: 5관 16:00-22:00\n금: 2관 16:30-18:00, 19:00-20:30\n토: 2관 11:00-17:00`
+        : `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n\n월: 2관 16:30-18:00, 19:00-20:30\n수: 2관 16:30-18:00, 19:00-20:30\n목: 5관 16:00-22:00\n금: 2관 16:30-18:00, 19:00-20:30\n토: 2관 11:00-17:00`;
       
-      showCustomConfirm(
-        `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n\n월: 2관 16:30-18:00, 19:00-20:30\n수: 2관 16:30-18:00, 19:00-20:30\n목: 5관 16:00-22:00\n금: 2관 16:30-18:00, 19:00-20:30\n토: 2관 11:00-17:00`,
-        async () => {
-          state.syncing = true;
-          render();
+      showCustomConfirm(message, async () => {
+        state.syncing = true;
+        showCustomAlert('적용중입니다...');
+        render();
+        
+        try {
+          // 모든 슬롯을 한 번에 추가
+          const formData = new FormData();
+          formData.append('sheet', 'slots');
+          formData.append('action', 'addBatch');
+          formData.append('data', JSON.stringify(slotsToAdd));
           
-          try {
-            for (const slot of slotsToAdd) {
-              await addToGoogleSheets('slots', slot);
-              // 약간의 딜레이 추가 (서버 부담 방지)
-              await new Promise(resolve => setTimeout(resolve, 100));
-            }
-            showCustomAlert(`${slotsToAdd.length}개의 고정 일정이 추가되었습니다!`);
-          } catch (error) {
-            console.error('고정 일정 추가 에러:', error);
-            showCustomAlert('일부 일정 추가에 실패했습니다.');
-          } finally {
-            state.syncing = false;
-            render();
-          }
+          await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+          await loadFromGoogleSheets();
+          
+          const resultMessage = skippedCount > 0
+            ? `적용 완료!\n\n${slotsToAdd.length}개 추가됨\n${skippedCount}개 건너뜀`
+            : `적용 완료!\n\n${slotsToAdd.length}개 추가됨`;
+          
+          showCustomAlert(resultMessage);
+        } catch (error) {
+          console.error('고정 일정 추가 에러:', error);
+          showCustomAlert('일정 추가에 실패했습니다.');
+        } finally {
+          state.syncing = false;
+          render();
         }
-      );
+      });
     }
 
     function openBookingForm(bookingId = null) {
@@ -1284,9 +1348,9 @@
       
       return `
         <div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-[99] flex items-center justify-center p-4">
-          <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">
+          <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all scale-100">
             <h3 class="text-xl font-bold text-gray-800 mb-4">${msgState.type === 'alert' ? '알림' : '확인'}</h3>
-            <p class="text-gray-700 mb-6">${msgState.message}</p>
+            <p class="text-gray-700 mb-6 whitespace-pre-line leading-relaxed">${msgState.message}</p>
             <div class="flex justify-end gap-3">
               ${msgState.type === 'confirm' ? `<button onclick="executeConfirm(false)" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow-md">취소</button>` : ''}
               <button onclick="executeConfirm(true)" class="px-4 py-2 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 transition shadow-md">${msgState.type === 'alert' ? '확인' : '계속'}</button>
