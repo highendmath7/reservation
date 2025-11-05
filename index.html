@@ -674,7 +674,7 @@
       render();
       
       try {
-        const booking = state.bookings.find(b => b.id === id);
+        const booking = state.bookings.find(b => String(b.id) === String(id));
         if (!booking) return;
         
         const updatedBooking = {
@@ -701,7 +701,7 @@
     }
 
     function openReasonModal(id) {
-      state.selectedBookingId = id;
+      state.selectedBookingId = String(id);
       state.showReasonModal = true;
       state.cancelReason = '';
       state.cancelReasonType = '';
@@ -907,7 +907,7 @@
             
             if (booking.status === 'scheduled') {
               html += '<div class="flex flex-col gap-2 ml-4">';
-              html += '<button onclick="updateBookingStatus(\'' + booking.id + '\', \'completed\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-green-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-600 disabled:opacity-50 shadow-md">✓ 완료</button>';
+              html += '<button onclick="updateBookingStatus(\'' + String(booking.id) + '\', \'completed\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-green-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-600 disabled:opacity-50 shadow-md">✓ 완료</button>';
               html += '<button onclick="openReasonModal(\'' + booking.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-orange-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-orange-600 disabled:opacity-50 shadow-md">✗ 미진행</button>';
               html += '</div>';
             }
@@ -1014,7 +1014,7 @@
 
               html += '<div class="flex flex-col gap-1 ml-4">';
               if (booking.status === 'scheduled') {
-                html += '<button onclick="updateBookingStatus(\'' + booking.id + '\', \'completed\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-600 disabled:opacity-50 shadow-sm">✓ 완료</button>';
+                html += '<button onclick="updateBookingStatus(\'' + String(booking.id) + '\', \'completed\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-green-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-600 disabled:opacity-50 shadow-sm">✓ 완료</button>';
                 html += '<button onclick="openReasonModal(\'' + booking.id + '\')" ' + (state.syncing ? 'disabled' : '') + ' class="bg-orange-500 text-white px-3 py-1 rounded-lg text-xs hover:bg-orange-600 disabled:opacity-50 shadow-sm">✗ 미진행</button>';
               }
               html += '<button onclick="openBookingForm(\'' + booking.id + '\')" class="bg-yellow-400 text-white px-3 py-1 rounded-lg text-xs hover:bg-yellow-500 shadow-sm">✏️ 수정</button>';
@@ -1316,6 +1316,7 @@
   </script>
 </body>
 </html>
+
 
 
 
