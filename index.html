@@ -443,34 +443,35 @@
       const message = `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n`;
           
       showCustomConfirm(message, async () => {
-        state.syncing = true;
-        render();
-        
-        let successCount = 0;  // ✨ 성공 카운터
-        let failCount = 0;     // ✨ 실패 카운터
-        
-        for (const slot of slotsToAdd) {
-          try {  // ✨ try-catch로 개별 에러 처리
-            const formData = new FormData();
-            formData.append('sheet', 'slots');
-            formData.append('action', 'add');
-            formData.append('data', JSON.stringify(slot));
-            await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
-            successCount++;  // ✨ 성공 카운트
-            console.log('추가 성공:', slot.date, slot.room, slot.startTime);  // ✨ 성공 로그
-          } catch (err) {
-            failCount++;  // ✨ 실패 카운트
-            console.error('추가 실패:', slot.date, slot.room, err);  // ✨ 실패 로그
+        try {
+          state.syncing = true;
+          render();
+      
+          let successCount = 0;
+          let failCount = 0;
+      
+          for (const slot of slotsToAdd) {
+            try {
+              const formData = new FormData();
+              formData.append('sheet', 'slots');
+              formData.append('action', 'add');
+              formData.append('data', JSON.stringify(slot));
+              await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+              successCount++;
+              console.log('추가 성공:', slot.date, slot.room, slot.startTime);
+            } catch (err) {
+              failCount++;
+              console.error('추가 실패:', slot.date, slot.room, err);
+            }
           }
-        }
-        
-        // ✨ 상세한 결과 메시지
-        let resultMessage = `적용 완료!\n\n성공: ${successCount}개`;
-        if (failCount > 0) resultMessage += `\n실패: ${failCount}개`;
-        if (skippedCount > 0) resultMessage += `\n중복: ${skippedCount}개`;
-        if (pastDateCount > 0) resultMessage += `\n과거: ${pastDateCount}개`;
-            
-        showCustomAlert(resultMessage);
+      
+          let resultMessage = `적용 완료!\n\n성공: ${successCount}개`;
+          if (failCount > 0) resultMessage += `\n실패: ${failCount}개`;
+          if (skippedCount > 0) resultMessage += `\n중복: ${skippedCount}개`;
+          if (pastDateCount > 0) resultMessage += `\n과거: ${pastDateCount}개`;
+      
+          showCustomAlert(resultMessage);
+      
         } catch (error) {
           console.error('고정 일정 추가 에러:', error);
           showCustomAlert('일정 추가에 실패했습니다.');
@@ -480,7 +481,6 @@
         }
       });
     }
-
     function openBookingForm(bookingId = null) {
       if (bookingId) {
         console.log('Looking for booking ID:', bookingId, 'Type:', typeof bookingId);
@@ -1372,6 +1372,7 @@
   </script>
 </body>
 </html>
+
 
 
 
