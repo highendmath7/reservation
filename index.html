@@ -981,6 +981,10 @@
               if (slot.testStartTime) { // ✨ 레벨테스트 시간 추가
                 html += '<div class="text-xs text-blue-600 mt-1">레벨테스트: ' + slot.testStartTime + '부터 가능</div>';
               }
+              if (!isPastDate) {
+                html += '<button onclick="deleteSlot(\'' + slot.id + '\')" class="text-red-500 hover:text-red-700 p-1 text-lg">🗑️</button>';
+              }
+              html += '</div>';
             }
           }
           html += '</div></div>';
@@ -1339,8 +1343,6 @@
   </script>
 </body>
 </html>
-
-
 
 
 
