@@ -1073,9 +1073,14 @@
         
         // ✨ 담당 선생님 입력 추가
         html += '<div><label>담당 선생님</label>';
-        html += '<input type="text" value="' + (state.slotForm.teacher || '') + '" 
-                 oninput="state.slotForm.teacher = this.value;" 
-                 placeholder="선생님 이름 입력"></div>';
+        html += `
+                  <div>
+                    <label>담당 선생님</label>
+                    <input type="text"
+                      value="${state.slotForm.teacher || ''}"
+                      oninput="state.slotForm.teacher = this.value;"
+                      placeholder="선생님 성함 입력력">                   </div>
+                `;
         
         // ✨ 레벨테스트 시작 가능 시간 추가
         html += '<div><label>레벨테스트 시작 가능 시간</label>';
@@ -1338,6 +1343,7 @@
   </script>
 </body>
 </html>
+
 
 
 
