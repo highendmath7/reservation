@@ -384,14 +384,20 @@
       const today = formatDate(new Date());
       const slotsToAdd = [];
       let skippedCount = 0;
+      const today = formatDate(new Date());
+      let pastDateCount = 0;  // ✨ 과거 날짜 카운터 추가
+      
+      console.log('오늘 날짜:', today);  // ✨ 오늘 날짜 확인
+      console.log('처리할 월:', year + '년 ' + (month + 1) + '월');
       
       for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
         const dateStr = formatDate(date);
-        const dayOfWeek = date.getDay();
-        console.log('추가할 슬롯:', slotsToAdd.length, '건너뜀:', skippedCount);  // ← 이것도 추가!
-        // 오늘 이전 날짜는 스킵
-        if (dateStr < today) continue;
+        
+        if (dateStr < today) {
+          console.log('과거 날짜 스킵:', dateStr);  // ✨ 어떤 날짜가 스킵되는지 표시
+          pastDateCount++;  // ✨ 과거 날짜 카운트
+          continue;
+        }
         
         // 해당 요일의 고정 일정이 있는지 확인
         const schedules = fixedSchedule[dayOfWeek];
@@ -1353,6 +1359,7 @@
   </script>
 </body>
 </html>
+
 
 
 
