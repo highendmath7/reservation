@@ -1065,25 +1065,17 @@
         }
 
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
-        html += '<select onchange="state.slotForm.room = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
+        html += '<select onchange="state.slotForm.room = this.value; render();" ...>';
         html += '<option value="">선택</option>';
-        allRooms.forEach(room => {
-          html += '<option value="' + room + '" ' + (state.slotForm.room === room ? 'selected' : '') + '>' + room + '</option>';
-        });
+        html += '<option value="하안관" ...>하안관</option>'; // ✨ 하안관/철산관 고정 선택
+        html += '<option value="철산관" ...>철산관</option>';
         html += '</select></div>';
-
-        html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">시작 시간 (24시간 표기)</label>';
-        html += '<select onchange="state.slotForm.startTime = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
-        html += '<option value="">선택</option>';
-        timeOptions.forEach(time => {
-          html += '<option value="' + time + '" ' + (state.slotForm.startTime === time ? 'selected' : '') + '>' + time + '</option>';
-        });
-        html += '</select></div>';
+        
         // ✨ 담당 선생님 입력 추가
         html += '<div><label>담당 선생님</label>';
         html += '<input type="text" value="' + (state.slotForm.teacher || '') + '" 
                  oninput="state.slotForm.teacher = this.value;" 
-                 placeholder="예: 박나영, 한승민, 첨삭T"></div>';
+                 placeholder="선생님 이름 입력"></div>';
         
         // ✨ 레벨테스트 시작 가능 시간 추가
         html += '<div><label>레벨테스트 시작 가능 시간</label>';
@@ -1346,6 +1338,7 @@
   </script>
 </body>
 </html>
+
 
 
 
