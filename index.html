@@ -437,12 +437,14 @@
         
         try {
           // 모든 슬롯을 한 번에 추가
-          const formData = new FormData();
-          formData.append('sheet', 'slots');
-          formData.append('action', 'addBatch');
-          formData.append('data', JSON.stringify(slotsToAdd));
+          for (const slot of slotsToAdd) {
+            const formData = new FormData();
+            formData.append('sheet', 'slots');
+            formData.append('action', 'add');  // ✅ 지원되는 액션
+            formData.append('data', JSON.stringify(slot));
+            await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+          }
           
-          await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
           await loadFromGoogleSheets();
           
           const resultMessage = skippedCount > 0
@@ -1351,6 +1353,7 @@
   </script>
 </body>
 </html>
+
 
 
 
