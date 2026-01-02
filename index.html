@@ -415,7 +415,8 @@
           );
           
           if (isDuplicate) {
-            skippedCount++;
+              console.log('중복 슬롯 건너뜀:', dateStr, schedule.room, schedule.startTime);  // ✨ 어떤 슬롯이 중복인지 표시
+              skippedCount++;
           } else {
             slotsToAdd.push({
               id: `${Date.now()}_${day}_${schedule.room}_${schedule.startTime.replace(':', '')}`,
@@ -430,8 +431,13 @@
         }
       }
       
+      console.log('추가할 슬롯:', slotsToAdd.length, '건너뜀:', skippedCount, '과거 날짜:', pastDateCount);  // ✨ 최종 결과
+
       if (slotsToAdd.length === 0) {
-        showCustomAlert(`이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 건너뜀)`);
+        const msg = pastDateCount > 0 
+          ? `이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 중복, ${pastDateCount}개 과거 날짜)`  // ✨ 과거 날짜 정보 추가
+          : `이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 건너뜀)`;
+        showCustomAlert(msg);
         return;
       }
       
@@ -441,23 +447,31 @@
         state.syncing = true;
         render();
         
-        try {
-          // 모든 슬롯을 한 번에 추가
-          for (const slot of slotsToAdd) {
+        let successCount = 0;  // ✨ 성공 카운터
+        let failCount = 0;     // ✨ 실패 카운터
+        
+        for (const slot of slotsToAdd) {
+          try {  // ✨ try-catch로 개별 에러 처리
             const formData = new FormData();
             formData.append('sheet', 'slots');
-            formData.append('action', 'add');  // ✅ 지원되는 액션
+            formData.append('action', 'add');
             formData.append('data', JSON.stringify(slot));
             await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+            successCount++;  // ✨ 성공 카운트
+            console.log('추가 성공:', slot.date, slot.room, slot.startTime);  // ✨ 성공 로그
+          } catch (err) {
+            failCount++;  // ✨ 실패 카운트
+            console.error('추가 실패:', slot.date, slot.room, err);  // ✨ 실패 로그
           }
-          
-          await loadFromGoogleSheets();
-          
-          const resultMessage = skippedCount > 0
-            ? `적용 완료!\n\n${slotsToAdd.length}개 추가됨\n${skippedCount}개 건너뜀`
-            : `적용 완료!\n\n${slotsToAdd.length}개 추가됨`;
-          
-          showCustomAlert(resultMessage);
+        }
+        
+        // ✨ 상세한 결과 메시지
+        let resultMessage = `적용 완료!\n\n성공: ${successCount}개`;
+        if (failCount > 0) resultMessage += `\n실패: ${failCount}개`;
+        if (skippedCount > 0) resultMessage += `\n중복: ${skippedCount}개`;
+        if (pastDateCount > 0) resultMessage += `\n과거: ${pastDateCount}개`;
+            
+        showCustomAlert(resultMessage);
         } catch (error) {
           console.error('고정 일정 추가 에러:', error);
           showCustomAlert('일정 추가에 실패했습니다.');
@@ -1359,6 +1373,7 @@
   </script>
 </body>
 </html>
+
 
 
 
