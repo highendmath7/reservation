@@ -405,30 +405,44 @@
         // 이미 슬롯이 있는 날짜인지 확인
         const existingSlots = state.availableSlots.filter(s => s.date === dateStr);
         
-        for (const schedule of schedules) {
-          // 같은 방, 같은 시간대의 슬롯이 이미 있는지 확인
-          const isDuplicate = existingSlots.some(s => 
-            s.room === schedule.room && 
-            s.startTime === schedule.startTime && 
-            s.endTime === schedule.endTime
-          );
-          
-          if (isDuplicate) {
-              console.log('중복 슬롯 건너뜀:', dateStr, schedule.room, schedule.startTime);  // ✨ 어떤 슬롯이 중복인지 표시
+        for (let day = 1; day <= daysInMonth; day++) {
+          const dateObj = new Date(year, month, day);
+          const dateStr = formatDate(dateObj);
+          const dayOfWeek = dateObj.getDay();
+        
+          if (dateStr < today) {
+            console.log('과거 날짜 스킵:', dateStr);
+            pastDateCount++;
+            continue;
+          }
+        
+          const schedules = fixedSchedule[dayOfWeek];
+          if (!schedules) continue;
+        
+          const existingSlots = state.availableSlots.filter(s => s.date === dateStr);
+        
+          for (const schedule of schedules) {
+            const isDuplicate = existingSlots.some(s =>
+              s.room === schedule.room &&
+              s.startTime === schedule.startTime &&
+              s.endTime === schedule.endTime
+            );
+        
+            if (isDuplicate) {
               skippedCount++;
-          } else {
-            slotsToAdd.push({
-              id: `${Date.now()}_${day}_${schedule.room}_${schedule.startTime.replace(':', '')}`,
-              date: dateStr,
-              room: schedule.room,
-              startTime: schedule.startTime,
-              endTime: schedule.endTime,
-              teacher: schedule.teacher,           // ✨ 추가됨
-              testStartTime: schedule.testStartTime // ✨ 추가됨
-            });
+            } else {
+              slotsToAdd.push({
+                id: `${Date.now()}_${day}_${schedule.room}_${schedule.startTime.replace(':', '')}`,
+                date: dateStr,
+                room: schedule.room,
+                startTime: schedule.startTime,
+                endTime: schedule.endTime,
+                teacher: schedule.teacher,
+                testStartTime: schedule.testStartTime
+              });
+            }
           }
         }
-      }
       
       console.log('추가할 슬롯:', slotsToAdd.length, '건너뜀:', skippedCount, '과거 날짜:', pastDateCount);  // ✨ 최종 결과
 
@@ -1372,6 +1386,7 @@
   </script>
 </body>
 </html>
+
 
 
 
