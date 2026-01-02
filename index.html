@@ -941,7 +941,7 @@
         html += '</div></div>';
         
         html += '<div class="mb-4 flex gap-4 text-sm text-gray-600 justify-center">';
-        html += '<div class="flex items-center gap-2"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span>상담 가능 시간</span></div>';
+        html += '<div class="flex items-center gap-2"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span></span></div>';
         html += '<div class="flex items-center gap-2"><div class="w-3 h-3 bg-blue-500 rounded-full"></div><span>예약된 상담</span></div>';
         html += '</div>';
 
@@ -975,14 +975,23 @@
           } else {
             for (let slot of selectedSlots) {
               html += '<div class="bg-green-50 p-3 rounded-xl border border-green-300 flex justify-between items-center shadow-sm">';
-              html += '<div><div class="font-medium text-green-700">' + slot.room + '</div>';
-              html += '<div class="text-base font-bold text-gray-800">' + slot.startTime + ' - ' + slot.endTime + '</div></div>';
-              if (slot.testStartTime) { // ✨ 레벨테스트 시간 추가
-                html += '<div class="text-xs text-blue-600 mt-1">레벨테스트: ' + slot.testStartTime + '부터 가능</div>';
+            
+              // ✅ 왼쪽 정보 묶음
+              html += '<div>';
+              html += '  <div class="font-medium text-green-700">' + slot.room + '</div>';
+              html += '  <div class="text-base font-bold text-gray-800">' + slot.startTime + ' - ' + slot.endTime + '</div>';
+            
+              if (slot.testStartTime) {
+                html += '  <div class="text-xs text-blue-600 mt-1">레벨테스트: ' + slot.testStartTime + '부터 가능</div>';
               }
+            
+              html += '</div>';
+            
+              // ✅ 오른쪽 삭제 버튼
               if (!isPastDate) {
                 html += '<button onclick="deleteSlot(\'' + slot.id + '\')" class="text-red-500 hover:text-red-700 p-1 text-lg">🗑️</button>';
               }
+            
               html += '</div>';
             }
           }
@@ -1342,6 +1351,7 @@
   </script>
 </body>
 </html>
+
 
 
 
