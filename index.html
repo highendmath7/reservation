@@ -375,81 +375,66 @@
     }
 
     async function applyFixedSchedule() {
-       console.log('applyFixedSchedule 호출됨');  // ← 이거 추가! 함수가 실행되는지 확인용
+      console.log('applyFixedSchedule 호출됨');
       const year = state.currentDate.getFullYear();
       const month = state.currentDate.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const daysInMonth = new Date(year, month + 1, 0).getDate(); // 한 줄로 합쳐서 명확하게
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
       
       const today = formatDate(new Date());
       const slotsToAdd = [];
       let skippedCount = 0;
-      let pastDateCount = 0;  // ✨ 과거 날짜 카운터 추가
-      const date = new Date(year, month, day);
+      let pastDateCount = 0;
       
-      console.log('오늘 날짜:', today);  // ✨ 오늘 날짜 확인
+      console.log('오늘 날짜:', today);
       console.log('처리할 월:', year + '년 ' + (month + 1) + '월');
       
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = formatDate(date);
+      // i를 날짜(1일부터 마지막 날까지)로 사용합니다.
+      for (let i = 1; i <= daysInMonth; i++) {
+        // 1. 먼저 date 객체를 만듭니다.
+        const dateObj = new Date(year, month, i); 
+        // 2. 이 객체로 dateStr(문자열 날짜)을 만듭니다.
+        const dateStr = formatDate(dateObj);
+        // 3. 요일을 가져옵니다.
+        const dayOfWeek = dateObj.getDay();
         
         if (dateStr < today) {
-          console.log('과거 날짜 스킵:', dateStr);  // ✨ 어떤 날짜가 스킵되는지 표시
-          pastDateCount++;  // ✨ 과거 날짜 카운트
+          console.log('과거 날짜 스킵:', dateStr);
+          pastDateCount++;
           continue;
         }
         
-        // 해당 요일의 고정 일정이 있는지 확인
         const schedules = fixedSchedule[dayOfWeek];
         if (!schedules) continue;
         
-        // 이미 슬롯이 있는 날짜인지 확인
         const existingSlots = state.availableSlots.filter(s => s.date === dateStr);
         
-        for (let day = 1; day <= daysInMonth; day++) {
-          const dateObj = new Date(year, month, day);
-          const dateStr = formatDate(dateObj);
-          const dayOfWeek = dateObj.getDay();
-        
-          if (dateStr < today) {
-            console.log('과거 날짜 스킵:', dateStr);
-            pastDateCount++;
-            continue;
-          }
-        
-          const schedules = fixedSchedule[dayOfWeek];
-          if (!schedules) continue;
-        
-          const existingSlots = state.availableSlots.filter(s => s.date === dateStr);
-        
-          for (const schedule of schedules) {
-            const isDuplicate = existingSlots.some(s =>
-              s.room === schedule.room &&
-              s.startTime === schedule.startTime &&
-              s.endTime === schedule.endTime
-            );
-        
-            if (isDuplicate) {
-              skippedCount++;
-            } else {
-              slotsToAdd.push({
-                id: `${Date.now()}_${day}_${schedule.room}_${schedule.startTime.replace(':', '')}`,
-                date: dateStr,
-                room: schedule.room,
-                startTime: schedule.startTime,
-                endTime: schedule.endTime,
-                teacher: schedule.teacher,
-                testStartTime: schedule.testStartTime
-              });
-            }
+        for (const schedule of schedules) {
+          const isDuplicate = existingSlots.some(s =>
+            s.room === schedule.room &&
+            s.startTime === schedule.startTime &&
+            s.endTime === schedule.endTime
+          );
+          
+          if (isDuplicate) {
+            skippedCount++;
+          } else {
+            slotsToAdd.push({
+              // 여기서 i(현재 날짜)를 사용하여 ID를 만듭니다.
+              id: `${Date.now()}_${i}_${schedule.room}_${schedule.startTime.replace(':', '')}`,
+              date: dateStr,
+              room: schedule.room,
+              startTime: schedule.startTime,
+              endTime: schedule.endTime,
+              teacher: schedule.teacher,
+              testStartTime: schedule.testStartTime
+            });
           }
         }
       }
-      console.log('추가할 슬롯:', slotsToAdd.length, '건너뜀:', skippedCount, '과거 날짜:', pastDateCount);  // ✨ 최종 결과
 
       if (slotsToAdd.length === 0) {
         const msg = pastDateCount > 0 
-          ? `이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 중복, ${pastDateCount}개 과거 날짜)`  // ✨ 과거 날짜 정보 추가
+          ? `이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 중복, ${pastDateCount}개 과거 날짜)`
           : `이미 모든 고정 일정이 등록되어 있습니다.\n(${skippedCount}개 건너뜀)`;
         showCustomAlert(msg);
         return;
@@ -461,10 +446,8 @@
         try {
           state.syncing = true;
           render();
-      
           let successCount = 0;
           let failCount = 0;
-      
           for (const slot of slotsToAdd) {
             try {
               const formData = new FormData();
@@ -473,22 +456,12 @@
               formData.append('data', JSON.stringify(slot));
               await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
               successCount++;
-              console.log('추가 성공:', slot.date, slot.room, slot.startTime);
             } catch (err) {
               failCount++;
-              console.error('추가 실패:', slot.date, slot.room, err);
             }
           }
-      
-          let resultMessage = `적용 완료!\n\n성공: ${successCount}개`;
-          if (failCount > 0) resultMessage += `\n실패: ${failCount}개`;
-          if (skippedCount > 0) resultMessage += `\n중복: ${skippedCount}개`;
-          if (pastDateCount > 0) resultMessage += `\n과거: ${pastDateCount}개`;
-      
-          showCustomAlert(resultMessage);
-      
+          showCustomAlert(`적용 완료!\n성공: ${successCount}, 실패: ${failCount}, 중복: ${skippedCount}, 과거: ${pastDateCount}`);
         } catch (error) {
-          console.error('고정 일정 추가 에러:', error);
           showCustomAlert('일정 추가에 실패했습니다.');
         } finally {
           state.syncing = false;
@@ -1387,6 +1360,7 @@
   </script>
 </body>
 </html>
+
 
 
 
