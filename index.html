@@ -64,7 +64,7 @@
       selectedBookingId: null,
       cancelReason: '',
       cancelReasonType: '',
-      slotForm: { date: '', startTime: '', endTime: '', room: '', teacher: '', testStartTime: '' }, // ✨ 2개 필드 추가
+      slotForm: { date: '', startTime: '', endTime: '', room: '', consultTeacher: '', testTeacher: '', testStartTime: '' }, // ✨ 2개 필드 추가
       bookingForm: {
           studentName: '',
           school: '',
@@ -106,31 +106,29 @@
     // 고정 일정 템플릿
       const fixedSchedule = {
       1: [ // 월요일
-        { room: '하안관', startTime: '15:10', endTime: '16:30', teacher: '박나영', testStartTime: '15:05' },
-        { room: '하안관', startTime: '20:00', endTime: '22:00', teacher: '박나영', testStartTime: '19:10' },
-        { room: '철산관', startTime: '15:30', endTime: '16:10', teacher: '첨삭T', testStartTime: '15:05' },
-        { room: '철산관', startTime: '20:30', endTime: '22:00', teacher: '첨삭T', testStartTime: '19:40' }
+        { room: '하안관', startTime: '15:10', endTime: '16:30', consultTteacher: '김청호', testTteacher: '박나영', testStartTime: '15:05' },
+        { room: '하안관', startTime: '20:00', endTime: '22:00', consultTteacher: '김청호', testTteacher: '박나영', testStartTime: '19:10' },
+        { room: '철산관', startTime: '15:30', endTime: '16:10', consultTteacher: '김청호', testTteacher: '첨삭', testStartTime: '15:05' },
+        { room: '철산관', startTime: '20:30', endTime: '22:00', consultTteacher: '김청호', testTteacher: '첨삭', testStartTime: '19:40' }
       ],
       2: [ // 화요일
-        { room: '철산관', startTime: '15:10', endTime: '21:00', teacher: '한승민', testStartTime: '15:05' }
+        { room: '철산관', startTime: '15:10', endTime: '21:00', consultTteacher: '한승민', testStartTime: '15:05' }
       ],
       3: [ // 수요일
-        { room: '하안관', startTime: '15:10', endTime: '18:00', teacher: '박나영', testStartTime: '15:05' },
-        { room: '철산관', startTime: '15:30', endTime: '17:30', teacher: '첨삭T', testStartTime: '15:05' }
+        { room: '하안관', startTime: '15:10', endTime: '18:00', consultTteacher: '김청호', testTteacher: '박나영', testStartTime: '15:05' },
+        { room: '철산관', startTime: '15:30', endTime: '17:30', consultTteacherr: '김청호', testTteacher: '첨삭', testStartTime: '15:05' }
       ],
       4: [ // 목요일
-        { room: '철산관', startTime: '15:10', endTime: '21:00', teacher: '한승민', testStartTime: '15:05' }
+        { room: '철산관', startTime: '15:10', endTime: '21:00', consultTteacher: '한승민', testTteacher: '한승민', testStartTime: '15:05' }
       ],
       5: [ // 금요일
-        { room: '하안관', startTime: '15:10', endTime: '16:30', teacher: '박나영', testStartTime: '15:05' },
-        { room: '하안관', startTime: '18:00', endTime: '20:00', teacher: '박나영', testStartTime: '17:10' },
-        { room: '철산관', startTime: '15:30', endTime: '16:10', teacher: '김동민', testStartTime: '15:05' },
-        { room: '철산관', startTime: '18:30', endTime: '19:30', teacher: '첨삭T', testStartTime: '17:40' }
+        { room: '하안관', startTime: '15:10', endTime: '16:30', consultTteacher: '김청호', testTteacher: '박나영', testStartTime: '15:05' },
+        { room: '하안관', startTime: '18:00', endTime: '20:00', consultTteacher: '김청호', testTteacher: '박나영', testStartTime: '17:10' },
+        { room: '철산관', startTime: '15:30', endTime: '16:10', consultTteacher: '김청호', testTteacher: '김동민', testStartTime: '15:05' },
+        { room: '철산관', startTime: '18:30', endTime: '19:30', consultTteacher: '김청호', testTteacher: '첨삭', testStartTime: '17:40' }
       ],
       6: [ // 토요일
-        { room: '하안관', startTime: '10:10', endTime: '13:00', teacher: '한승민', testStartTime: '10:05' },
-        { room: '하안관', startTime: '13:00', endTime: '17:30', teacher: '한승민', testStartTime: '13:00' },
-        { room: '철산관', startTime: '10:30', endTime: '12:30', teacher: '윤지유', testStartTime: '10:05' }
+        { room: '철산관', startTime: '10:30', endTime: '12:30', consultTteacher: '김청호', testTteacher: '첨삭', testStartTime: '10:05' }
       ]
     };
 
@@ -330,7 +328,8 @@
     function openSlotForm(date) {
       state.slotForm.date = date;
       state.slotForm.room = '';              // ✨ 빈 값으로 초기화
-      state.slotForm.teacher = '';           // ✨ 추가
+      state.slotForm.consultTteacher = '';           // ✨ 추가
+      state.slotForm.testTteacher = ''; 
       state.slotForm.testStartTime = '';     // ✨ 추가
       state.showSlotForm = true;
       render();
@@ -357,7 +356,8 @@
           startTime: state.slotForm.startTime,
           endTime: state.slotForm.endTime,
           room: state.slotForm.room,
-          teacher: state.slotForm.teacher || '',           // ✨ 추가
+          consultTeacher: state.slotForm.consultTeacher || '',           // ✨ 추가
+          testTeacher: state.slotForm.testTeacher || '',
           testStartTime: state.slotForm.testStartTime || '' // ✨ 추가
         };
         await addToGoogleSheets('slots', newSlot);
@@ -425,7 +425,8 @@
               room: schedule.room,
               startTime: schedule.startTime,
               endTime: schedule.endTime,
-              teacher: schedule.teacher,
+              consultTeacher: schedule.consultTeacher,           // ✨ 추가
+              testTeacher: schedule.testTeacher,
               testStartTime: schedule.testStartTime
             });
           }
@@ -1092,11 +1093,19 @@
         html += '<div><label>담당 선생님</label>';
         html += `
                   <div>
-                    <label>담당 선생님</label>
+                    <label>상담</label>
                     <input type="text"
-                      value="${state.slotForm.teacher || ''}"
-                      oninput="state.slotForm.teacher = this.value;"
-                      placeholder="선생님 성함 입력력">                   </div>
+                      value="${state.slotForm.consultTeacher || ''}"
+                      oninput="state.slotForm.consultTeacher = this.value;"
+                      placeholder="선생님 성함 입력">                   </div>
+                `;
+        html += `
+                  <div>
+                    <label>레벨테스트</label>
+                    <input type="text"
+                      value="${state.slotForm.testTeacher || ''}"
+                      oninput="state.slotForm.testTeacher = this.value;"
+                      placeholder="선생님 성함 입력">                   </div>
                 `;
         
         // ✨ 레벨테스트 시작 가능 시간 추가
@@ -1360,6 +1369,7 @@
   </script>
 </body>
 </html>
+
 
 
 
