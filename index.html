@@ -1143,7 +1143,7 @@
         const timeOptions = generateTimeOptions(state.slotForm.date);
         
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showSlotForm = false; render(); }">';
-        html += '<div class="bg-white rounded-xl shadow-2xl max-w-xl w-full p-6 md:p-8 transform transition-all scale-100">';
+        html += '<div class="bg-white rounded-xl shadow-2xl max-h-[95vh] overflow-y-auto w-full p-6 md:p-8 transform transition-all scale-100">';
         html += '<h3 class="text-2xl font-bold text-gray-800 mb-6">➕ 상담 가능 시간 추가</h3>';
         
         html += '<div class="space-y-4">';
@@ -1434,6 +1434,7 @@
   </script>
 </body>
 </html>
+
 
 
 
