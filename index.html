@@ -295,35 +295,62 @@
     }
 
     async function addToGoogleSheets(sheet, data) {
-      const formData = new FormData();
-      formData.append('sheet', sheet);
-      formData.append('action', 'add');
-      formData.append('data', JSON.stringify(data));
-      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+      const params = new URLSearchParams();
+      params.append('sheet', sheet);
+      params.append('action', 'add');
+      params.append('data', JSON.stringify(data));
+    
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: params.toString()
+      });
+    
       await loadFromGoogleSheets();
       handleDateClick(state.selectedDate, false);
     }
+
 
     async function updateInGoogleSheets(sheet, id, data) {
-      const formData = new FormData();
-      formData.append('sheet', sheet);
-      formData.append('action', 'update');
-      formData.append('id', id);
-      formData.append('data', JSON.stringify(data));
-      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+      const params = new URLSearchParams();
+      params.append('sheet', sheet);
+      params.append('action', 'update');
+      params.append('id', id);
+      params.append('data', JSON.stringify(data));
+    
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: params.toString()
+      });
+    
       await loadFromGoogleSheets();
       handleDateClick(state.selectedDate, false);
     }
 
+
     async function deleteFromGoogleSheets(sheet, id) {
-      const formData = new FormData();
-      formData.append('sheet', sheet);
-      formData.append('action', 'delete');
-      formData.append('id', id);
-      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+      const params = new URLSearchParams();
+      params.append('sheet', sheet);
+      params.append('action', 'delete');
+      params.append('id', id);
+    
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: params.toString()
+      });
+    
       await loadFromGoogleSheets();
       handleDateClick(state.selectedDate, false);
     }
+
 
     function openSlotForm(date) {
       state.slotForm.date = date;
@@ -1440,6 +1467,7 @@
   </script>
 </body>
 </html>
+
 
 
 
