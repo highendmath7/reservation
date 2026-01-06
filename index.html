@@ -1034,7 +1034,13 @@
               if (slot.testStart) {
                 html += '  <div class="text-xs text-blue-600 mt-1">레벨테스트: ' + slot.testStart + '부터 가능</div>';
               }
-            
+              if (slot.consultTeacher) {
+               html += '  <div class="text-xs text-blue-600 mt-1">상담: ' + slot.testStart + 'T</div>';
+              }
+              if (booking.hasLevelTest && slot.testTeacher) {
+                html += '  <div class="text-xs text-blue-600 mt-1">테스트: ' + slot.testStart + 'T</div>';
+              }
+
               html += '</div>';
             
               // ✅ 오른쪽 삭제 버튼
@@ -1434,6 +1440,7 @@
   </script>
 </body>
 </html>
+
 
 
 
