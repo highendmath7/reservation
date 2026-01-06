@@ -444,9 +444,10 @@
       const message = `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n`;
           
       showCustomConfirm(message, async () => {
+        state.syncing = true;
+        render();
+        
         try {
-          state.syncing = true;
-          render();
           let successCount = 0;
           let failCount = 0;
           for (const slot of slotsToAdd) {
@@ -461,6 +462,9 @@
               failCount++;
             }
           }
+          
+          // ✨ 데이터 새로고침 후 완료 팝업
+          await loadFromGoogleSheets();
           showCustomAlert(`적용 완료!\n성공: ${successCount}, 실패: ${failCount}, 중복: ${skippedCount}, 과거: ${pastDateCount}`);
         } catch (error) {
           showCustomAlert('일정 추가에 실패했습니다.');
@@ -484,7 +488,9 @@
           return;
         }
         
-        console.log('Found booking:', booking);
+        // ✨ 완료된 예약인지 체크
+        const isCompleted = booking.status === 'completed';
+        
         state.editingBooking = String(bookingId);
         state.bookingForm = {
           studentName: booking.studentName || '',
@@ -495,7 +501,8 @@
           time: booking.consultTime || booking.time || '',
           room: booking.consultRoom || booking.room || '',
           consultMode: booking.consultMode || 'in_person',
-          testRoom: booking.testRoom || ''
+          testRoom: booking.testRoom || '',
+          isCompleted: isCompleted  // ✨ 완료 상태 저장
         };
       } else {
         state.editingBooking = null;
@@ -520,6 +527,12 @@
       const dateStr = state.bookingForm.date;
       const step = 5;
       const CONSULT_DURATION = 30;
+    
+      // ✨ 수정 모드인 경우 원래 예약 정보 가져오기
+      let editingBookingData = null;
+      if (state.editingBooking) {
+        editingBookingData = state.bookings.find(b => String(b.id) === String(state.editingBooking));
+      }
 
       const g = String(state.bookingForm.grade||'').trim();
       const isElementary = g.startsWith('elementary') || g==='elementary' ||
@@ -533,6 +546,7 @@
       
       const bookings = (state.bookings||[])
         .filter(r => (r.date||'')===dateStr)
+        .filter(r => !editingBookingData || String(r.id) !== String(editingBookingData.id)) // 수정 중인 예약 제외
         .map(r => ({
           room: norm(r.room),
           startM: timeToMins(r.time),
@@ -913,6 +927,22 @@
             html += '<span class="text-indigo-600">' + booking.room + '</span> | ';
             html += booking.school + ' ' + gradeLabels[booking.grade] + ' | ';
             html += '<span class="text-blue-700">' + booking.studentName + '</span>';
+            // ✨ 선생님 정보 표시 추가
+            const relatedSlot = state.availableSlots.find(s => 
+              s.date === booking.date && 
+              s.room === booking.room &&
+              timeToMins(booking.consultTime || booking.time) >= timeToMins(s.startTime) &&
+              timeToMins(booking.consultTime || booking.time) < timeToMins(s.endTime)
+            );
+            if (relatedSlot && (relatedSlot.consultTeacher || relatedSlot.testTeacher)) {
+              html += ' <span class="text-sm text-gray-600">(';
+              if (relatedSlot.consultTeacher) html += '상담: ' + relatedSlot.consultTeacher;
+              if (relatedSlot.testTeacher) {
+                if (relatedSlot.consultTeacher) html += ', ';
+                html += '테스트: ' + relatedSlot.testTeacher;
+              }
+              html += ')</span>';
+            }
             html += ' <span class="text-sm font-medium ' + (booking.status === 'completed' ? 'text-green-600' : booking.status === 'cancelled' ? 'text-red-600' : 'text-orange-600') + '">' + statusText + '</span>';
             html += '</div>';
             html += '<div class="flex items-center gap-4 text-gray-600 text-sm">';
@@ -985,11 +1015,21 @@
           } else {
             for (let slot of selectedSlots) {
               html += '<div class="bg-green-50 p-3 rounded-xl border border-green-300 flex justify-between items-center shadow-sm">';
-            
-              // ✅ 왼쪽 정보 묶음
               html += '<div>';
               html += '  <div class="font-medium text-green-700">' + slot.room + '</div>';
               html += '  <div class="text-base font-bold text-gray-800">' + slot.startTime + ' - ' + slot.endTime + '</div>';
+              // ✨ 선생님 정보 표시 추가
+              if (slot.consultTeacher || slot.testTeacher) {
+                html += '  <div class="text-xs text-gray-600 mt-1">';
+                if (slot.consultTeacher) {
+                  html += '상담: ' + slot.consultTeacher;
+                }
+                if (slot.testTeacher) {
+                  if (slot.consultTeacher) html += ' | ';
+                  html += '테스트: ' + slot.testTeacher;
+                }
+                html += '  </div>';
+              }
             
               if (slot.testStart) {
                 html += '  <div class="text-xs text-blue-600 mt-1">레벨테스트: ' + slot.testStart + '부터 가능</div>';
@@ -1028,6 +1068,22 @@
               html += '<div class="text-lg font-bold text-gray-800">';
               html += '<span class="text-indigo-600">' + booking.room + '</span> | ';
               html += '<span class="text-gray-700">' + gradeLabels[booking.grade] + ' ' + booking.studentName + '</span>';
+              // ✨ 선생님 정보 표시 추가
+              const relatedSlot = state.availableSlots.find(s => 
+                s.date === booking.date && 
+                s.room === booking.room &&
+                timeToMins(booking.consultTime || booking.time) >= timeToMins(s.startTime) &&
+                timeToMins(booking.consultTime || booking.time) < timeToMins(s.endTime)
+              );
+              if (relatedSlot && (relatedSlot.consultTeacher || relatedSlot.testTeacher)) {
+                html += ' <span class="text-sm text-gray-600">(';
+                if (relatedSlot.consultTeacher) html += '상담: ' + relatedSlot.consultTeacher;
+                if (relatedSlot.testTeacher) {
+                  if (relatedSlot.consultTeacher) html += ', ';
+                  html += '테스트: ' + relatedSlot.testTeacher;
+                }
+                html += ')</span>';
+              }
               html += ' <span class="text-sm font-medium ' + (booking.status === 'completed' ? 'text-green-600' : booking.status === 'cancelled' ? 'text-red-600' : 'text-orange-600') + '">' + statusText + '</span>';
               html += '</div>';
               html += '<div class="text-sm text-gray-600 mt-1">';
@@ -1160,6 +1216,13 @@
           html += '<option value="' + g + '" ' + (state.bookingForm.grade === g ? 'selected' : '') + '>' + gradeLabels[g] + '</option>';
         });
         html += '</select></div></div>';
+
+        // ✨ 완료된 예약은 나머지 필드 비활성화
+        if (isCompleted) {
+          html += '<div class="text-sm text-blue-600 p-3 bg-blue-50 rounded-lg mb-4">';
+          html += '✓ 완료된 상담은 학생 정보(이름, 학교, 학년)만 수정할 수 있습니다.';
+          html += '</div>';
+        }
         
         html += '<div class="flex items-center">';
         html += '<input id="hasLevelTest" type="checkbox" ' + (state.bookingForm.hasLevelTest ? 'checked' : '') + ' onchange="state.bookingForm.hasLevelTest=this.checked; state.bookingForm.time=\'\'; if(state.bookingForm.consultMode===\'phone\'){ state.bookingForm.testRoom=\'\'; } render();" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">';
@@ -1371,6 +1434,7 @@
   </script>
 </body>
 </html>
+
 
 
 
