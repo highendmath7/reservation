@@ -1157,6 +1157,29 @@
           html += isWeekendDate ? '📅 주말: 10:00~21:00 사이 선택 가능' : '📅 주중: 15:00~22:00 사이 선택 가능';
           html += '</div>';
         }
+        const timeOptions = generateTimeOptions(state.slotForm.date);
+
+        html += '<div class="grid grid-cols-2 gap-4">';
+        html += '<div>';
+        html += '<label class="block text-sm font-medium text-gray-700 mb-1">시작 시간</label>';
+        html += '<select onchange="state.slotForm.startTime = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">';
+        html += '<option value="">선택</option>';
+        for (const t of timeOptions) {
+          html += '<option value="' + t + '"' + (state.slotForm.startTime === t ? ' selected' : '') + '>' + t + '</option>';
+        }
+        html += '</select></div>';
+        
+        html += '<div>';
+        html += '<label class="block text-sm font-medium text-gray-700 mb-1">종료 시간</label>';
+        html += '<select onchange="state.slotForm.endTime = this.value" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">';
+        html += '<option value="">선택</option>';
+        for (const t of timeOptions) {
+          if (!state.slotForm.startTime || t > state.slotForm.startTime) {
+            html += '<option value="' + t + '"' + (state.slotForm.endTime === t ? ' selected' : '') + '>' + t + '</option>';
+          }
+        }
+        html += '</select></div>';
+        html += '</div>';
 
         html += '<div><label class="block text-sm font-medium text-gray-700 mb-1">상담실</label>';
         html += '<select onchange="state.slotForm.room = this.value; render();" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" required>';
@@ -1166,24 +1189,32 @@
         html += '</select></div>';
         
         // ✨ 담당 선생님 입력 추가
-        html += '<div><label>담당 선생님</label>';
-        html += '<div class="space-y-2">';
         html += `
-                  <div>
-                    <label>상담</label>
-                    <input type="text"
-                      value="${state.slotForm.consultTeacher || ''}"
-                      oninput="state.slotForm.consultTeacher = this.value;"
-                      placeholder="선생님 성함 입력" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">                   </div>
-                `;
-        html += `
-                  <div>
-                    <label>레벨테스트</label>
-                    <input type="text"
-                      value="${state.slotForm.testTeacher || ''}"
-                      oninput="state.slotForm.testTeacher = this.value;"
-                      placeholder="선생님 성함 입력" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">                   </div>
-                `;
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+          <div class="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            👩‍🏫 담당 선생님
+            <span class="text-xs text-gray-500">(선택)</span>
+          </div>
+        
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">상담 담당</label>
+            <input type="text"
+              value="${state.slotForm.consultTeacher || ''}"
+              oninput="state.slotForm.consultTeacher = this.value;"
+              placeholder="예: 김OO 선생님"
+              class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+          </div>
+        
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">레벨테스트 담당</label>
+            <input type="text"
+              value="${state.slotForm.testTeacher || ''}"
+              oninput="state.slotForm.testTeacher = this.value;"
+              placeholder="예: 박OO 선생님"
+              class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+          </div>
+        </div>
+        `;
         html += '</div>';
 
         html += '<div class="flex justify-end gap-3 mt-8">';
@@ -1434,6 +1465,7 @@
   </script>
 </body>
 </html>
+
 
 
 
