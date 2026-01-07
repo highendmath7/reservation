@@ -106,29 +106,29 @@
     // 고정 일정 템플릿
       const fixedSchedule = {
       1: [ // 월요일
-        { room: '하안관', startTime: '15:10', endTime: '16:30', consultTteacher: '김청호', testTteacher: '박나영'},
-        { room: '하안관', startTime: '20:00', endTime: '22:00', consultTteacher: '김청호', testTteacher: '박나영'},
-        { room: '철산관', startTime: '15:30', endTime: '16:10', consultTteacher: '김청호', testTteacher: '첨삭'},
-        { room: '철산관', startTime: '20:30', endTime: '22:00', consultTteacher: '김청호', testTteacher: '첨삭'}
+        { room: '하안관', startTime: '15:10', endTime: '16:30', consultTeacher: '김청호', testTeacher: '박나영'},
+        { room: '하안관', startTime: '20:00', endTime: '22:00', consultTeacher: '김청호', testTeacher: '박나영'},
+        { room: '철산관', startTime: '15:30', endTime: '16:10', consultTeacher: '김청호', testTeacher: '첨삭'},
+        { room: '철산관', startTime: '20:30', endTime: '22:00', consultTeacher: '김청호', testTeacher: '첨삭'}
       ],
       2: [ // 화요일
-        { room: '철산관', startTime: '15:10', endTime: '21:00', consultTteacher: '한승민'}
+        { room: '철산관', startTime: '15:10', endTime: '21:00', consultTeacher: '한승민'}
       ],
       3: [ // 수요일
-        { room: '하안관', startTime: '15:10', endTime: '18:00', consultTteacher: '김청호', testTteacher: '박나영'},
-        { room: '철산관', startTime: '15:30', endTime: '17:30', consultTteacherr: '김청호', testTteacher: '첨삭'}
+        { room: '하안관', startTime: '15:10', endTime: '18:00', consultTeacher: '김청호', testTeacher: '박나영'},
+        { room: '철산관', startTime: '15:30', endTime: '17:30', consultTeacher: '김청호', testTeacher: '첨삭'}
       ],
       4: [ // 목요일
-        { room: '철산관', startTime: '15:10', endTime: '21:00', consultTteacher: '한승민', testTteacher: '한승민'}
+        { room: '철산관', startTime: '15:10', endTime: '21:00', consultTeacher: '한승민', testTeacher: '한승민'}
       ],
       5: [ // 금요일
-        { room: '하안관', startTime: '15:10', endTime: '16:30', consultTteacher: '김청호', testTteacher: '박나영'},
-        { room: '하안관', startTime: '18:00', endTime: '20:00', consultTteacher: '김청호', testTteacher: '박나영'},
-        { room: '철산관', startTime: '15:30', endTime: '16:10', consultTteacher: '김청호', testTteacher: '김동민'},
-        { room: '철산관', startTime: '18:30', endTime: '19:30', consultTteacher: '김청호', testTteacher: '첨삭'}
+        { room: '하안관', startTime: '15:10', endTime: '16:30', consultTeacher: '김청호', testTeacher: '박나영'},
+        { room: '하안관', startTime: '18:00', endTime: '20:00', consultTeacher: '김청호', testTeacher: '박나영'},
+        { room: '철산관', startTime: '15:30', endTime: '16:10', consultTeacher: '김청호', testTeacher: '김동민'},
+        { room: '철산관', startTime: '18:30', endTime: '19:30', consultTeacher: '김청호', testTeacher: '첨삭'}
       ],
       6: [ // 토요일
-        { room: '철산관', startTime: '10:30', endTime: '12:30', consultTteacher: '김청호', testTteacher: '첨삭'}
+        { room: '철산관', startTime: '10:30', endTime: '12:30', consultTeacher: '김청호', testTteacher: '첨삭'}
       ]
     };
 
@@ -355,8 +355,8 @@
     function openSlotForm(date) {
       state.slotForm.date = date;
       state.slotForm.room = '';              // ✨ 빈 값으로 초기화
-      state.slotForm.consultTteacher = '';           // ✨ 추가
-      state.slotForm.testTteacher = ''; 
+      state.slotForm.consultTeacher = '';           // ✨ 추가
+      state.slotForm.testTeacher = ''; 
       state.showSlotForm = true;
       render();
     }
@@ -1227,6 +1227,7 @@
         const availableTimes = getAvailableTimes();
         const isPhone = (state.bookingForm.consultMode === 'phone');
         const isTestOnly = (isPhone && state.bookingForm.hasLevelTest);
+        const isCompleted = state.bookingForm.isCompleted || false;
         
         html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')) { state.showBookingForm = false; render(); }">';
         html += '<div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 md:p-8 max-h-[85vh] overflow-y-auto transform transition-all scale-100">';
@@ -1464,6 +1465,7 @@
   </script>
 </body>
 </html>
+
 
 
 
