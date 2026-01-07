@@ -992,10 +992,10 @@
             );
             if (relatedSlot && (relatedSlot.consultTeacher || relatedSlot.testTeacher)) {
               html += ' <span class="text-sm text-gray-600">(';
-              if (relatedSlot.consultTeacher) html += '상담: ' + relatedSlot.consultTeacher;
+              if (relatedSlot.consultTeacher) html += '상담: ' + relatedSlot.consultTeacher + 'T';
               if (relatedSlot.testTeacher) {
                 if (relatedSlot.consultTeacher) html += ', ';
-                html += '테스트: ' + relatedSlot.testTeacher;
+                html += '테스트: ' + relatedSlot.testTeacher + 'T';
               }
               html += ')</span>';
             }
@@ -1224,7 +1224,6 @@
         <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
           <div class="text-sm font-semibold text-gray-800 flex items-center gap-2">
             👩‍🏫 담당 선생님
-            <span class="text-xs text-gray-500">(선택)</span>
           </div>
         
           <div>
@@ -1232,7 +1231,7 @@
             <input type="text"
               value="${state.slotForm.consultTeacher || ''}"
               oninput="state.slotForm.consultTeacher = this.value;"
-              placeholder="예: 김OO 선생님"
+              placeholder="예: 김OO"
               class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
           </div>
         
@@ -1241,7 +1240,7 @@
             <input type="text"
               value="${state.slotForm.testTeacher || ''}"
               oninput="state.slotForm.testTeacher = this.value;"
-              placeholder="예: 박OO 선생님"
+              placeholder="예: 박OO"
               class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
           </div>
         </div>
@@ -1497,6 +1496,7 @@
   </script>
 </body>
 </html>
+
 
 
 
