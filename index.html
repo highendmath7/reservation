@@ -1078,11 +1078,11 @@
               if (slot.consultTeacher || slot.testTeacher) {
                 html += '  <div class="text-xs text-gray-600 mt-1">';
                 if (slot.consultTeacher) {
-                  html += '상담: ' + slot.consultTeacher;
+                  html += '상담: ' + slot.consultTeacher + 'T';
                 }
                 if (slot.testTeacher) {
                   if (slot.consultTeacher) html += ' | ';
-                  html += '테스트: ' + slot.testTeacher;
+                  html += '테스트: ' + slot.testTeacher + 'T';
                 }
                 html += '  </div>';
               }
@@ -1129,10 +1129,10 @@
               );
               if (relatedSlot && (relatedSlot.consultTeacher || relatedSlot.testTeacher)) {
                 html += ' <span class="text-sm text-gray-600">(';
-                if (relatedSlot.consultTeacher) html += '상담: ' + relatedSlot.consultTeacher;
+                if (relatedSlot.consultTeacher) html += '상담: ' + relatedSlot.consultTeacher + 'T';
                 if (relatedSlot.testTeacher) {
                   if (relatedSlot.consultTeacher) html += ', ';
-                  html += '테스트: ' + relatedSlot.testTeacher;
+                  html += '테스트: ' + relatedSlot.testTeacher + 'T';
                 }
                 html += ')</span>';
               }
@@ -1496,6 +1496,7 @@
   </script>
 </body>
 </html>
+
 
 
 
