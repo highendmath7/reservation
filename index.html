@@ -465,32 +465,64 @@
         return;
       }
       
-      const message = `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n(${skippedCount}개는 이미 존재하여 건너뜀)\n\n`;
-          
+      const message =
+        `${year}년 ${month + 1}월에 ${slotsToAdd.length}개의 고정 일정을 추가하시겠습니까?\n` +
+        `(${skippedCount}개는 이미 존재하여 건너뜀)\n\n`;
+      
       showCustomConfirm(message, async () => {
         state.syncing = true;
         render();
-        
+      
+        // 🔹 시작 알림
+        showCustomAlert(`고정 일정을 적용하는 중입니다...\n\n진행: 0 / ${slotsToAdd.length}`);
+      
+        let successCount = 0;
+        let failCount = 0;
+      
         try {
-          let successCount = 0;
-          let failCount = 0;
+          let progress = 0;
+      
           for (const slot of slotsToAdd) {
             try {
               const formData = new FormData();
               formData.append('sheet', 'slots');
               formData.append('action', 'add');
               formData.append('data', JSON.stringify(slot));
-              await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+      
+              await fetch(GOOGLE_SCRIPT_URL, {
+                method: 'POST',
+                body: formData
+              });
+      
               successCount++;
             } catch (err) {
               failCount++;
             }
+      
+            // 🔹 진행 상황 업데이트
+            progress++;
+            closeMessageBox();
+            showCustomAlert(
+              `고정 일정을 적용하는 중입니다...\n\n진행: ${progress} / ${slotsToAdd.length}`
+            );
           }
-          
-          // ✨ 데이터 새로고침 후 완료 팝업
+      
+          // 🔹 새로고침 안내
+          closeMessageBox();
+          showCustomAlert('데이터를 새로고침하는 중...');
           await loadFromGoogleSheets();
-          showCustomAlert(`적용 완료!\n성공: ${successCount}, 실패: ${failCount}, 중복: ${skippedCount}, 과거: ${pastDateCount}`);
+      
+          // 🔹 최종 결과 메시지
+          closeMessageBox();
+          let resultMessage = `✅ 등록되었습니다!\n\n성공: ${successCount}개`;
+          if (failCount > 0) resultMessage += `\n실패: ${failCount}개`;
+          if (skippedCount > 0) resultMessage += `\n중복: ${skippedCount}개`;
+          if (pastDateCount > 0) resultMessage += `\n과거: ${pastDateCount}개`;
+      
+          showCustomAlert(resultMessage);
+      
         } catch (error) {
+          closeMessageBox();
           showCustomAlert('일정 추가에 실패했습니다.');
         } finally {
           state.syncing = false;
@@ -1465,6 +1497,7 @@
   </script>
 </body>
 </html>
+
 
 
 
