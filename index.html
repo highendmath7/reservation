@@ -1367,11 +1367,13 @@
             html += '</div>';
           } else if (state.bookingForm.hasLevelTest) {
             const levelTestMins = isElem ? 40 : 50;
-            const consultEnd = addMinutesToTime(state.bookingForm.time, 30);
+            const consultStart = state.bookingForm.time;
+            const testStart = addMinutesToTime(consultStart, -levelTestMins);
+            const consultEnd = addMinutesToTime(state.bookingForm.time, 30);ㄹ
             html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
-            html += '레벨테스트: ' + consultStart-levelTestMins + ' - ' + state.bookingForm.time + ' (' + levelTestMins + '분)<br>';
-            html += '상담: ' + state.bookingForm.time + ' - ' + consultEnd + ' (30분)<br>';
-            html += '총 예약 시간: ' + consultStart-levelTestMins + ' - ' + consultEnd + ' (' + (levelTestMins + 30) + '분)';
+            html += '레벨테스트: ' + testStart + ' - ' + consultStart + ' (' + levelTestMins + '분)<br>';
+            html += '상담: ' + consultStart + ' - ' + consultEnd + ' (30분)<br>';
+            html += '총 예약 시간: ' + testStart + ' - ' + consultEnd + ' (' + (levelTestMins + 30) + '분)';
             html += '</div>';
           } else {
             const consultEnd = addMinutesToTime(state.bookingForm.time, 30);
@@ -1496,6 +1498,7 @@
   </script>
 </body>
 </html>
+
 
 
 
