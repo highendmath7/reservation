@@ -1357,7 +1357,7 @@
           const isElem = g.startsWith('elementary') || g === 'elementary' || ['초','초1','초2','초3','초4','초5','초6'].some(k => g.includes(k));
           
           if (isTestOnly) {
-            const L = isElem ? 40 : 50;
+            coㅇnst L = isElem ? 40 : 50;
             const consultStart = addMinutesToTime(state.bookingForm.time, L);
             const consultEnd = addMinutesToTime(consultStart, 30);
             html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
@@ -1369,7 +1369,7 @@
             const levelTestMins = isElem ? 40 : 50;
             const consultStart = state.bookingForm.time;
             const testStart = addMinutesToTime(consultStart, -levelTestMins);
-            const consultEnd = addMinutesToTime(state.bookingForm.time, 30);ㄹ
+            const consultEnd = addMinutesToTime(state.bookingForm.time, 30);
             html += '<div class="text-sm text-blue-700 p-3 bg-blue-100 rounded-lg">';
             html += '레벨테스트: ' + testStart + ' - ' + consultStart + ' (' + levelTestMins + '분)<br>';
             html += '상담: ' + consultStart + ' - ' + consultEnd + ' (30분)<br>';
@@ -1498,6 +1498,7 @@
   </script>
 </body>
 </html>
+
 
 
 
