@@ -1461,8 +1461,8 @@
         html += '</div>';
 
         html += '<div class="flex justify-end gap-3 mt-8">';
-        html += '<button type="button" onclick="state.showBookingForm=false; render();" class="px-4 py-2 rounded-lg border">취소</button>';
-        html += '<button type="button" onclick="addBooking()" class="px-4 py-2 rounded-lg bg-indigo-600 text-white shadow">' + (state.editingBooking ? '수정' : '등록') + '</button>';
+        html += '<button type="button" onclick="state.showBookingForm=false; render();" ' + (state.syncing ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg border disabled:opacity-50">취소</button>';
+        html += '<button type="button" onclick="addBooking()" ' + (state.syncing ? 'disabled' : '') + ' class="px-4 py-2 rounded-lg bg-indigo-600 text-white shadow disabled:opacity-50">' + (state.editingBooking ? '수정' : '등록') + '</button>';
         html += '</div>';
         html += '</div></div>';
       }
@@ -1552,9 +1552,24 @@
     }
 
     function renderMessageBox() {
-      if (!msgState.show) return '';
+      let html = '';
+
+      // 저장 중 오버레이
+      if (state.syncing) {
+        html += `
+          <div class="fixed inset-0 bg-gray-900 bg-opacity-60 z-[98] flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+              <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+              <p class="text-lg font-bold text-gray-800">저장 중입니다...</p>
+              <p class="text-sm text-gray-500">잠시만 기다려 주세요.</p>
+            </div>
+          </div>
+        `;
+      }
+
+      if (!msgState.show) return html;
       
-      return `
+      html += `
         <div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-[99] flex items-center justify-center p-4">
           <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all scale-100">
             <h3 class="text-xl font-bold text-gray-800 mb-4">${msgState.type === 'alert' ? '알림' : '확인'}</h3>
@@ -1566,6 +1581,7 @@
           </div>
         </div>
       `;
+      return html;
     }
 
     window.onload = async function () {
