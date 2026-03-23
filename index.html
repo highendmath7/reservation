@@ -42,6 +42,13 @@
         render();
     }
 
+    async function setSyncing(val) {
+      state.syncing = val;
+      render();
+      // 브라우저가 DOM을 실제로 업데이트할 시간을 줌
+      await new Promise(r => setTimeout(r, 30));
+    }
+
     function executeConfirm(result) {
         const callback = msgState.confirmCallback;
         closeMessageBox();
@@ -373,8 +380,7 @@
         return;
       }
 
-      state.syncing = true;
-      render();
+      await setSyncing(true);
       
       try {
         const newSlot = {
@@ -395,8 +401,7 @@
         console.error('에러:', error);
         showCustomAlert('저장 실패!');
       } finally {
-        state.syncing = false;
-        render();
+        await setSyncing(false);
       }
     }
 
@@ -544,8 +549,7 @@
         `(${skippedCount}개는 이미 존재하여 건너뜀)\n\n`;
       
       showCustomConfirm(message, async () => {
-        state.syncing = true;
-        render();
+        await setSyncing(true);
       
         // 🔹 시작 알림
         showCustomAlert(`고정 일정을 적용하는 중입니다...\n\n진행: 0 / ${slotsToAdd.length}`);
@@ -599,8 +603,7 @@
           closeMessageBox();
           showCustomAlert('일정 추가에 실패했습니다.');
         } finally {
-          state.syncing = false;
-          render();
+          await setSyncing(false);
         }
       });
     }
@@ -790,8 +793,7 @@
         return showCustomAlert('선택한 시간은 예약 규칙(상담/테스트 슬롯, 충돌)과 맞지 않습니다.');
       }
 
-      state.syncing = true;
-      render();
+      await setSyncing(true);
 
       try {
         const bookingData = {
@@ -814,7 +816,7 @@
           const existing = state.bookings.find(b => String(b.id) === String(state.editingBooking));
           if (!existing) {
             showCustomAlert('수정할 예약을 찾을 수 없습니다.');
-            state.syncing = false;
+            await setSyncing(false);
             return;
           }
           await updateInGoogleSheets('bookings', state.editingBooking, { ...existing, ...bookingData });
@@ -832,14 +834,12 @@
         console.error(e);
         showCustomAlert('예약 처리 실패!');
       } finally {
-        state.syncing = false;
-        render();
+        await setSyncing(false);
       }
     }
 
     async function updateBookingStatus(id, status, reason = '') {
-      state.syncing = true;
-      render();
+      await setSyncing(true);
       
       try {
         const booking = state.bookings.find(b => String(b.id) === String(id));
@@ -859,12 +859,11 @@
         console.error('에러:', error);
         showCustomAlert('상태 변경 실패!');
       } finally {
-        state.syncing = false;
         state.showReasonModal = false;
         state.selectedBookingId = null;
         state.cancelReason = '';
         state.cancelReasonType = '';
-        render();
+        await setSyncing(false);
       }
     }
 
@@ -891,8 +890,7 @@
 
     async function deleteSlot(id) {
       showCustomConfirm('정말 삭제하시겠습니까? 이 시간대에 예약된 상담이 있는지 확인해주세요.', async () => {
-        state.syncing = true;
-        render();
+        await setSyncing(true);
         
         try {
           await deleteFromGoogleSheets('slots', id);
@@ -900,16 +898,14 @@
         } catch (error) {
           showCustomAlert('삭제 실패!');
         } finally {
-          state.syncing = false;
-          render();
+          await setSyncing(false);
         }
       });
     }
 
     async function deleteBooking(id) {
       showCustomConfirm('정말 이 예약을 삭제하시겠습니까?', async () => {
-        state.syncing = true;
-        render();
+        await setSyncing(true);
         
         try {
           await deleteFromGoogleSheets('bookings', id);
@@ -917,8 +913,7 @@
         } catch (error) {
           showCustomAlert('삭제 실패!');
         } finally {
-          state.syncing = false;
-          render();
+          await setSyncing(false);
         }
       });
     }
