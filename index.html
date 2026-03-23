@@ -410,10 +410,25 @@
       render();
     }
 
-    function updateScheduleTeacher(dayNum, idx, field, value) {
-      fixedSchedule[dayNum][idx][field] = value;
-      // 로컬스토리지에 저장
+    function saveSchedule() {
       try { localStorage.setItem('fixedSchedule', JSON.stringify(fixedSchedule)); } catch(e) {}
+    }
+
+    function updateScheduleField(dayNum, idx, field, value) {
+      fixedSchedule[dayNum][idx][field] = value;
+      saveSchedule();
+    }
+
+    function deleteScheduleSlot(dayNum, idx) {
+      fixedSchedule[dayNum].splice(idx, 1);
+      saveSchedule();
+      render();
+    }
+
+    function addScheduleSlot(dayNum) {
+      fixedSchedule[dayNum].push({ room: '하안관', startTime: '15:00', endTime: '18:00', consultTeacher: '', testTeacher: '' });
+      saveSchedule();
+      render();
     }
 
     function loadSavedSchedule() {
@@ -421,16 +436,15 @@
         const saved = localStorage.getItem('fixedSchedule');
         if (saved) {
           const parsed = JSON.parse(saved);
-          // 기존 키 구조 유지하면서 병합
+          // 저장된 데이터로 완전 덮어쓰기 (추가/삭제 포함)
           for (const day in parsed) {
-            if (fixedSchedule[day]) {
-              parsed[day].forEach((s, i) => {
-                if (fixedSchedule[day][i]) {
-                  fixedSchedule[day][i].consultTeacher = s.consultTeacher ?? fixedSchedule[day][i].consultTeacher;
-                  fixedSchedule[day][i].testTeacher = s.testTeacher ?? fixedSchedule[day][i].testTeacher;
-                }
-              });
-            }
+            fixedSchedule[day] = parsed[day].map(s => ({
+              room: s.room || '하안관',
+              startTime: s.startTime || '15:00',
+              endTime: s.endTime || '18:00',
+              consultTeacher: s.consultTeacher || '',
+              testTeacher: s.testTeacher || ''
+            }));
           }
         }
       } catch(e) {}
@@ -438,40 +452,91 @@
 
     function renderScheduleEditor() {
       const dayNames = { 1:'월요일', 2:'화요일', 3:'수요일', 4:'목요일', 5:'금요일', 6:'토요일' };
+      const roomOptions = ['하안관', '철산관'];
+
+      // 시간 옵션 생성 (10:00~22:00, 5분 단위)
+      const timeOpts = [];
+      for (let h = 10; h <= 22; h++) {
+        for (let m = 0; m < 60; m += 5) {
+          timeOpts.push(String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'));
+        }
+      }
+      timeOpts.push('22:00');
+
       let html = '';
       html += '<div class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4" onclick="if(event.target.classList.contains(\'bg-opacity-75\')){state.showScheduleEditor=false;render();}">';
-      html += '<div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col p-6 md:p-8">';
-      html += '<h3 class="text-2xl font-bold text-gray-800 mb-1">📌 고정 일정 선생님 수정</h3>';
-      html += '<p class="text-sm text-gray-500 mb-5">변경사항은 자동 저장되며, 다음 "고정 일정 적용" 시 반영됩니다.</p>';
-      html += '<div class="overflow-y-auto flex-1 space-y-5 pr-1">';
+      html += '<div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col p-6 md:p-8" onclick="event.stopPropagation()">';
+      html += '<h3 class="text-2xl font-bold text-gray-800 mb-1">📌 고정 일정 수정</h3>';
+      html += '<p class="text-sm text-gray-500 mb-4">변경사항은 자동 저장되며, 다음 "고정 일정 적용" 시 반영됩니다.</p>';
+      html += '<div class="overflow-y-auto flex-1 space-y-4 pr-1">';
 
       for (const day in fixedSchedule) {
         const slots = fixedSchedule[day];
         html += '<div class="bg-gray-50 rounded-xl border border-gray-200 p-4">';
-        html += '<div class="text-base font-bold text-indigo-700 mb-3">📅 ' + dayNames[day] + '</div>';
+        // 요일 헤더 + 추가 버튼
+        html += '<div class="flex justify-between items-center mb-3">';
+        html += '<div class="text-base font-bold text-indigo-700">📅 ' + dayNames[day] + '</div>';
+        html += '<button onclick="addScheduleSlot(' + day + ')" class="text-xs bg-indigo-500 text-white px-3 py-1 rounded-lg hover:bg-indigo-600 transition">+ 슬롯 추가</button>';
+        html += '</div>';
+
+        if (slots.length === 0) {
+          html += '<p class="text-sm text-gray-400 text-center py-2">일정 없음</p>';
+        }
+
         html += '<div class="space-y-3">';
         slots.forEach((slot, idx) => {
           html += '<div class="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">';
-          html += '<div class="text-xs font-semibold text-gray-500 mb-2">' + slot.room + '　' + slot.startTime + ' – ' + slot.endTime + '</div>';
-          html += '<div class="flex gap-3">';
-          // 상담 담당
+
+          // 1행: 관 + 시작 ~ 종료 + 삭제버튼
+          html += '<div class="flex gap-2 items-center mb-2">';
+
+          // 관 선택
+          html += '<select onchange="updateScheduleField(' + day + ',' + idx + ',\'room\',this.value)" class="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400 w-24">';
+          roomOptions.forEach(r => {
+            html += '<option value="' + r + '"' + (slot.room === r ? ' selected' : '') + '>' + r + '</option>';
+          });
+          html += '</select>';
+
+          // 시작 시간
+          html += '<select onchange="updateScheduleField(' + day + ',' + idx + ',\'startTime\',this.value)" class="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400 flex-1">';
+          timeOpts.forEach(t => {
+            html += '<option value="' + t + '"' + (slot.startTime === t ? ' selected' : '') + '>' + t + '</option>';
+          });
+          html += '</select>';
+
+          html += '<span class="text-gray-400 text-sm">~</span>';
+
+          // 종료 시간
+          html += '<select onchange="updateScheduleField(' + day + ',' + idx + ',\'endTime\',this.value)" class="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400 flex-1">';
+          timeOpts.forEach(t => {
+            html += '<option value="' + t + '"' + (slot.endTime === t ? ' selected' : '') + '>' + t + '</option>';
+          });
+          html += '</select>';
+
+          // 삭제 버튼
+          html += '<button onclick="deleteScheduleSlot(' + day + ',' + idx + ')" class="text-red-400 hover:text-red-600 text-lg px-1">🗑️</button>';
+          html += '</div>';
+
+          // 2행: 선생님
+          html += '<div class="flex gap-2">';
           html += '<div class="flex-1">';
-          html += '<label class="block text-xs text-gray-500 mb-1">상담 담당</label>';
-          html += '<input type="text" value="' + (slot.consultTeacher || '') + '" oninput="updateScheduleTeacher(' + day + ',' + idx + ',\'consultTeacher\',this.value)" class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400" placeholder="이름">';
+          html += '<label class="block text-xs text-gray-400 mb-1">상담 담당</label>';
+          html += '<input type="text" value="' + (slot.consultTeacher || '') + '" oninput="updateScheduleField(' + day + ',' + idx + ',\'consultTeacher\',this.value)" class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400" placeholder="이름">';
           html += '</div>';
-          // 테스트 담당
           html += '<div class="flex-1">';
-          html += '<label class="block text-xs text-gray-500 mb-1">테스트 담당</label>';
-          html += '<input type="text" value="' + (slot.testTeacher || slot.testTteacher || '') + '" oninput="updateScheduleTeacher(' + day + ',' + idx + ',\'testTeacher\',this.value)" class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400" placeholder="이름">';
+          html += '<label class="block text-xs text-gray-400 mb-1">테스트 담당</label>';
+          html += '<input type="text" value="' + (slot.testTeacher || '') + '" oninput="updateScheduleField(' + day + ',' + idx + ',\'testTeacher\',this.value)" class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-400" placeholder="이름">';
           html += '</div>';
           html += '</div>';
-          html += '</div>';
+
+          html += '</div>'; // card
         });
-        html += '</div></div>';
+        html += '</div>'; // space-y-3
+        html += '</div>'; // day block
       }
 
-      html += '</div>';
-      html += '<div class="flex justify-end mt-6">';
+      html += '</div>'; // scroll area
+      html += '<div class="flex justify-end mt-5">';
       html += '<button onclick="state.showScheduleEditor=false; render();" class="px-5 py-2 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition shadow-md">✓ 닫기</button>';
       html += '</div>';
       html += '</div></div>';
@@ -1102,7 +1167,7 @@
         html += '<h2 class="text-2xl font-bold text-gray-800">📅 캘린더</h2>';
         html += '<div class="flex items-center gap-4">';
         html += '<button onclick="applyFixedSchedule()" ' + (state.syncing ? 'disabled' : '') + ' class="bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-purple-600 transition disabled:opacity-50 shadow-md">📌 고정 일정 적용</button>';
-        html += '<button onclick="openScheduleEditor()" class="bg-orange-400 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-orange-500 transition shadow-md">👩‍🏫 선생님 수정</button>';
+        html += '<button onclick="openScheduleEditor()" class="bg-orange-400 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-orange-500 transition shadow-md">✏️ 고정 일정 수정</button>';
         html += '<button onclick="prevMonth()" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition">◀</button>';
         html += '<span class="text-xl font-bold text-indigo-700">' + state.currentDate.getFullYear() + '년 ' + monthNames[state.currentDate.getMonth()] + '</span>';
         html += '<button onclick="nextMonth()" class="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition">▶</button>';
